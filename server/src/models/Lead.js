@@ -7,8 +7,8 @@ export const leadSchema = new mongoose.Schema(
       required: true,
       trim: true,
       unique: true,
-      index: true,
     },
+
     source: {
       type: String,
       enum: [
@@ -22,21 +22,25 @@ export const leadSchema = new mongoose.Schema(
       ],
       default: "google_maps",
     },
+
     note: {
       type: String,
       trim: true,
       default: "",
     },
+
     assignedTo: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       default: null,
     },
+
     addedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
     },
+
     callStatus: {
       type: String,
       enum: [
@@ -110,10 +114,12 @@ export const leadSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+
     followUpDate: {
       type: Date,
       default: null,
     },
+
     lastContactedAt: {
       type: Date,
       default: null,
@@ -121,8 +127,6 @@ export const leadSchema = new mongoose.Schema(
   },
   { timestamps: true },
 );
-
-// leadSchema.index({ phone: 1 });
 
 leadSchema.index({ source: 1 });
 leadSchema.index({ assignedTo: 1 });
