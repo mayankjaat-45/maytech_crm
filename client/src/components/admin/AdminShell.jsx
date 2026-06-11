@@ -106,7 +106,6 @@ export default function AdminShell({ children }) {
 
   const navItems = useMemo(() => {
     if (!user?.role) return [];
-
     return allNavItems.filter((item) => item.roles.includes(user.role));
   }, [user]);
 
@@ -126,35 +125,50 @@ export default function AdminShell({ children }) {
 
   return (
     <main className="min-h-screen bg-[#020617] text-white">
+      {open ? (
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="fixed inset-0 z-40 bg-black/60 lg:hidden"
+          aria-label="Close sidebar overlay"
+        />
+      ) : null}
+
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-72 border-r border-white/10 bg-[#020617] p-5 transition-transform duration-300 lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-white/10 bg-[#020617] transition-transform duration-300 lg:translate-x-0 ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="mb-8 flex items-center justify-between">
-          <Link href="/admin/dashboard" className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-400 text-slate-950">
-              <PhoneCall size={22} />
-            </div>
+        <div className="shrink-0 p-5">
+          <div className="flex items-center justify-between">
+            <Link href="/admin/dashboard" className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-400 text-slate-950">
+                <PhoneCall size={22} />
+              </div>
 
-            <div>
-              <h1 className="text-lg font-black">MayTech CRM</h1>
-              <p className="text-xs text-slate-400">Lead Tracker</p>
-            </div>
-          </Link>
+              <div>
+                <h1 className="text-lg font-black leading-tight">
+                  MayTech CRM
+                </h1>
+                <p className="text-xs text-slate-400">Lead Tracker</p>
+              </div>
+            </Link>
 
-          <button
-            onClick={() => setOpen(false)}
-            className="rounded-xl p-2 text-slate-400 hover:bg-white/10 lg:hidden"
-          >
-            <X size={20} />
-          </button>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="rounded-xl p-2 text-slate-400 hover:bg-white/10 lg:hidden"
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
-        <nav className="space-y-2">
+        <nav className="min-h-0 flex-1 space-y-2 overflow-y-auto px-5 pb-5">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const active = pathname === item.href;
+            const active =
+              pathname === item.href || pathname.startsWith(`${item.href}/`);
 
             return (
               <Link
@@ -168,31 +182,39 @@ export default function AdminShell({ children }) {
                 }`}
               >
                 <Icon size={18} />
-                {item.label}
+                <span>{item.label}</span>
               </Link>
             );
           })}
         </nav>
 
-        <div className="absolute bottom-5 left-5 right-5 rounded-2xl border border-white/10 bg-white/4 p-4">
-          <p className="text-sm font-bold">{user?.name || "User"}</p>
-          <p className="mt-1 text-xs capitalize text-slate-400">
-            {user?.role?.replace("_", " ")}
-          </p>
+        <div className="shrink-0 border-t border-white/10 p-5">
+          <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
+            <div className="mb-4">
+              <p className="truncate text-sm font-black text-white">
+                {user?.name || "User"}
+              </p>
+              <p className="mt-1 text-xs capitalize text-slate-400">
+                {user?.role?.replace("_", " ") || "Member"}
+              </p>
+            </div>
 
-          <button
-            onClick={logout}
-            className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 px-4 py-2 text-sm font-bold text-slate-300 hover:bg-white/10 hover:text-white"
-          >
-            <LogOut size={16} />
-            Logout
-          </button>
+            <button
+              type="button"
+              onClick={logout}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 px-4 py-3 text-sm font-bold text-slate-300 hover:bg-white/10 hover:text-white"
+            >
+              <LogOut size={16} />
+              Logout
+            </button>
+          </div>
         </div>
       </aside>
 
       <div className="lg:pl-72">
-        <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-white/10 bg-[#020617]/90 px-4 backdrop-blur lg:hidden">
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-white/10 bg-[#020617]/90 px-4 backdrop-blur lg:hidden">
           <button
+            type="button"
             onClick={() => setOpen(true)}
             className="rounded-xl border border-white/10 p-2 text-slate-300"
           >
