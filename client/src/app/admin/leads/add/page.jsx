@@ -25,20 +25,27 @@ const createWhatsAppLink = ({
 }) => {
   const cleanedMemberPhone = cleanPhone(memberPhone);
 
-  const crmUrl =
-    typeof window !== "undefined"
-      ? `${window.location.origin}/admin/leads/${leadId}`
-      : "";
+  const crmBaseUrl =
+    process.env.NEXT_PUBLIC_CRM_URL ||
+    (typeof window !== "undefined" ? window.location.origin : "");
 
-  const message = encodeURIComponent(
-    `New lead assigned to you\n\nPhone: ${leadPhone}\nSource: ${formatLabel(
-      source,
-    )}\nNote: ${note || "N/A"}\n\nOpen CRM:\n${crmUrl}`,
-  );
+  const crmUrl = `${crmBaseUrl}/admin/leads/${leadId}`;
 
-  return `https://wa.me/91${cleanedMemberPhone}?text=${message}`;
+  const message = [
+    "New lead assigned to you",
+    "",
+    `Phone: ${leadPhone}`,
+    `Source: ${formatLabel(source)}`,
+    `Note: ${note || "N/A"}`,
+    "",
+    "Open CRM lead:",
+    crmUrl,
+  ].join("\n");
+
+  return `https://wa.me/91${cleanedMemberPhone}?text=${encodeURIComponent(
+    message,
+  )}`;
 };
-
 export default function AddLeadPage() {
   const router = useRouter();
 
