@@ -35,8 +35,8 @@ export const createLead = async (req, res) => {
     });
 
     const populatedLead = await Lead.findById(lead._id)
-      .populate("assignedTo", "name email role")
-      .populate("addedBy", "name email role");
+      .populate("assignedTo", "name email phone role")
+      .populate("addedBy", "name email phone role");
 
     res.status(201).json({
       success: true,
@@ -139,8 +139,8 @@ export const getLeads = async (req, res) => {
     const skip = (Number(page) - 1) * Number(limit);
 
     const leads = await Lead.find(query)
-      .populate("assignedTo", "name email role")
-      .populate("addedBy", "name email role")
+      .populate("assignedTo", "name email phone role")
+      .populate("addedBy", "name email phone role")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(Number(limit));
@@ -167,8 +167,8 @@ export const getLeads = async (req, res) => {
 export const getLeadById = async (req, res) => {
   try {
     const lead = await Lead.findById(req.params.id)
-      .populate("assignedTo", "name email role")
-      .populate("addedBy", "name email role");
+      .populate("assignedTo", "name email phone role")
+      .populate("addedBy", "name email phone role");
 
     if (!lead) {
       return res.status(404).json({
@@ -242,8 +242,8 @@ export const updateLead = async (req, res) => {
       new: true,
       runValidators: true,
     })
-      .populate("assignedTo", "name email role")
-      .populate("addedBy", "name email role");
+      .populate("assignedTo", "name email phone role")
+      .populate("addedBy", "name email phone role");
 
     if (!lead) {
       return res.status(404).json({
@@ -411,8 +411,8 @@ export const getFollowUpLeads = async (req, res) => {
     }
 
     const leads = await Lead.find(query)
-      .populate("assignedTo", "name email role")
-      .populate("addedBy", "name email role")
+      .populate("assignedTo", "name email phone role")
+      .populate("addedBy", "name email phone role")
       .sort({ followUpDate: 1 });
 
     res.status(200).json({
@@ -503,8 +503,8 @@ export const getConvertedLeads = async (req, res) => {
     const skip = (Number(page) - 1) * Number(limit);
 
     const leads = await Lead.find(query)
-      .populate("assignedTo", "name email role")
-      .populate("addedBy", "name email role")
+      .populate("assignedTo", "name email phone role")
+      .populate("addedBy", "name email phone role")
       .sort({ convertedAt: -1, updatedAt: -1 })
       .skip(skip)
       .limit(Number(limit));

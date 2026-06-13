@@ -189,7 +189,7 @@ export default function AdminShell({ children }) {
         </nav>
 
         <div className="shrink-0 border-t border-white/10 p-5">
-          <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
+          <div className="rounded-3xl border border-white/10 bg-white/4 p-4">
             <div className="mb-4">
               <p className="truncate text-sm font-black text-white">
                 {user?.name || "User"}

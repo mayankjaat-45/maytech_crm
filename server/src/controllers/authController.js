@@ -9,7 +9,7 @@ const generateToken = (id) => {
 
 export const registerUser = async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, phone, password, role } = req.body;
 
     if (!name || !email || !password) {
       return res.status(400).json({
@@ -37,6 +37,7 @@ export const registerUser = async (req, res) => {
     const user = await User.create({
       name,
       email,
+      phone: phone || "",
       password,
       role: role || "sales",
     });
@@ -49,6 +50,7 @@ export const registerUser = async (req, res) => {
         _id: user._id,
         name: user.name,
         email: user.email,
+        phone: user.phone,
         role: user.role,
         isActive: user.isActive,
       },
@@ -105,6 +107,7 @@ export const loginUser = async (req, res) => {
         _id: user._id,
         name: user.name,
         email: user.email,
+        phone: user.phone,
         role: user.role,
         isActive: user.isActive,
       },

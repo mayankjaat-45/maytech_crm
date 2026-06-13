@@ -41,6 +41,7 @@ export default function TeamPage() {
   const [form, setForm] = useState({
     name: "",
     email: "",
+    phone: "",
     password: "",
     role: "sales",
   });
@@ -74,6 +75,7 @@ export default function TeamPage() {
     setForm({
       name: "",
       email: "",
+      phone: "",
       password: "",
       role: "sales",
     });
@@ -196,6 +198,20 @@ export default function TeamPage() {
                 value={form.email}
                 onChange={handleChange}
                 placeholder="sales@maytech.com"
+                className="w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-sm outline-none placeholder:text-slate-600"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-bold text-slate-300">
+                Phone / WhatsApp Number
+              </label>
+
+              <input
+                name="phone"
+                value={form.phone}
+                onChange={handleChange}
+                placeholder="9876543210"
                 className="w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-sm outline-none placeholder:text-slate-600"
               />
             </div>

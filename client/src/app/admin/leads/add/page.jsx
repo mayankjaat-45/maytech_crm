@@ -7,6 +7,38 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
 
+const cleanPhone = (phone) => {
+  return String(phone || "").replace(/\D/g, "");
+};
+
+const formatLabel = (value) => {
+  if (!value) return "N/A";
+  return value.replaceAll("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());
+};
+
+const createWhatsAppLink = ({
+  memberPhone,
+  leadPhone,
+  source,
+  note,
+  leadId,
+}) => {
+  const cleanedMemberPhone = cleanPhone(memberPhone);
+
+  const crmUrl =
+    typeof window !== "undefined"
+      ? `${window.location.origin}/admin/leads/${leadId}`
+      : "";
+
+  const message = encodeURIComponent(
+    `New lead assigned to you\n\nPhone: ${leadPhone}\nSource: ${formatLabel(
+      source,
+    )}\nNote: ${note || "N/A"}\n\nOpen CRM:\n${crmUrl}`,
+  );
+
+  return `https://wa.me/91${cleanedMemberPhone}?text=${message}`;
+};
+
 export default function AddLeadPage() {
   const router = useRouter();
 
@@ -67,11 +99,25 @@ export default function AddLeadPage() {
         assignedTo: form.assignedTo || null,
       };
 
-      console.log("ADD LEAD PAYLOAD:", payload);
-
-      await API.post("/api/leads", payload);
+      const { data } = await API.post("/api/leads", payload);
 
       toast.success("Lead added successfully");
+
+      const assignedUser = users.find((user) => user._id === form.assignedTo);
+
+      if (assignedUser?.phone) {
+        const whatsappLink = createWhatsAppLink({
+          memberPhone: assignedUser.phone,
+          leadPhone: data.lead.phone,
+          source: data.lead.source,
+          note: data.lead.note,
+          leadId: data.lead._id,
+        });
+
+        window.open(whatsappLink, "_blank");
+      } else if (form.assignedTo) {
+        toast.error("Assigned user does not have WhatsApp number saved");
+      }
 
       router.push("/admin/leads");
     } catch (error) {
@@ -172,6 +218,7 @@ export default function AddLeadPage() {
               {users.map((user) => (
                 <option key={user._id} value={user._id}>
                   {user.name} - {user.role?.replace("_", " ")}
+                  {user.phone ? ` - ${user.phone}` : ""}
                 </option>
               ))}
             </select>
