@@ -82,6 +82,7 @@ export const leadSchema = new mongoose.Schema(
         "google_ads",
         "landing_page",
         "ecommerce_website",
+        "CRM_Developement",
         "portfolio_website",
         "other",
       ],

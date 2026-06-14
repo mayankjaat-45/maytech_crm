@@ -171,6 +171,7 @@ export default function MyLeadsPage() {
           <option value="seo">SEO</option>
           <option value="google_ads">Google Ads</option>
           <option value="landing_page">Landing Page</option>
+          <option value="CRM_Developement">CRM Developement</option>
           <option value="ecommerce_website">Ecommerce Website</option>
           <option value="portfolio_website">Portfolio Website</option>
           <option value="other">Other</option>
