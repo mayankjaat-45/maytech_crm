@@ -100,12 +100,12 @@ export default function DashboardPage() {
 
   return (
     <AdminShell>
-      <div className="mb-8">
-        <p className="text-sm font-bold uppercase tracking-[0.25em] text-cyan-300">
+      <div className="mb-6 md:mb-8">
+        <p className="text-xs font-bold uppercase tracking-[0.22em] text-cyan-300 md:text-sm md:tracking-[0.25em]">
           Overview
         </p>
 
-        <h1 className="mt-2 text-3xl font-black md:text-4xl">CRM Dashboard</h1>
+        <h1 className="mt-2 text-2xl font-black md:text-4xl">CRM Dashboard</h1>
 
         <p className="mt-2 text-sm text-slate-400">
           Track your lead calls, requirements, follow-ups and revenue.
@@ -118,24 +118,24 @@ export default function DashboardPage() {
         </div>
       ) : (
         <>
-          <section className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+          <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:gap-5 xl:grid-cols-4">
             {cards.map((card) => {
               const Icon = card.icon;
 
               return (
                 <div
                   key={card.title}
-                  className="rounded-3xl border border-white/10 bg-white/4 p-6"
+                  className="rounded-2xl border border-white/10 bg-white/4 p-4 md:rounded-3xl md:p-6"
                 >
-                  <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-400/10 text-cyan-300">
-                    <Icon size={24} />
+                  <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-300 md:mb-5 md:h-12 md:w-12 md:rounded-2xl">
+                    <Icon size={20} className="md:h-6 md:w-6" />
                   </div>
 
-                  <p className="text-sm font-semibold text-slate-400">
+                  <p className="line-clamp-2 min-h-9 text-xs font-semibold leading-snug text-slate-400 md:min-h-0 md:text-sm">
                     {card.title}
                   </p>
 
-                  <h2 className="mt-2 text-3xl font-black md:text-4xl">
+                  <h2 className="mt-2 wrap-break-word text-xl font-black leading-tight md:text-4xl">
                     {card.value}
                   </h2>
                 </div>
@@ -143,33 +143,33 @@ export default function DashboardPage() {
             })}
           </section>
 
-          <div className="mt-8 flex flex-wrap gap-3">
+          <div className="mt-8 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
             <button
               onClick={() => router.push("/admin/leads")}
-              className="rounded-2xl bg-cyan-400 px-5 py-3 text-sm font-black text-slate-950 hover:bg-cyan-300"
+              className="rounded-2xl bg-cyan-400 px-4 py-3 text-xs font-black text-slate-950 hover:bg-cyan-300 md:px-5 md:text-sm"
             >
               View Leads
             </button>
 
             <button
               onClick={() => router.push("/admin/leads/add")}
-              className="rounded-2xl border border-white/10 px-5 py-3 text-sm font-bold text-white hover:bg-white/10"
+              className="rounded-2xl border border-white/10 px-4 py-3 text-xs font-bold text-white hover:bg-white/10 md:px-5 md:text-sm"
             >
               Add Lead
             </button>
 
             <button
               onClick={() => router.push("/admin/follow-ups")}
-              className="rounded-2xl border border-white/10 px-5 py-3 text-sm font-bold text-white hover:bg-white/10"
+              className="rounded-2xl border border-white/10 px-4 py-3 text-xs font-bold text-white hover:bg-white/10 md:px-5 md:text-sm"
             >
-              Today Follow-ups
+              Follow-ups
             </button>
 
             <button
               onClick={() => router.push("/admin/converted")}
-              className="rounded-2xl border border-white/10 px-5 py-3 text-sm font-bold text-white hover:bg-white/10"
+              className="rounded-2xl border border-white/10 px-4 py-3 text-xs font-bold text-white hover:bg-white/10 md:px-5 md:text-sm"
             >
-              Converted Leads
+              Converted
             </button>
           </div>
         </>
