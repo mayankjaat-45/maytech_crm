@@ -6,9 +6,9 @@ import {
   ArrowLeft,
   Calendar,
   CheckCircle2,
-  CircleDollarSign,
   Clock,
   FileText,
+  IndianRupee,
   Loader2,
   Phone,
   Save,
@@ -24,7 +24,10 @@ import toast, { Toaster } from "react-hot-toast";
 
 const formatLabel = (value) => {
   if (!value) return "—";
-  return value.replaceAll("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
+  return value
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase());
 };
 
 const formatDateForInput = (dateValue) => {
@@ -32,7 +35,9 @@ const formatDateForInput = (dateValue) => {
 
   const date = new Date(dateValue);
 
-  if (Number.isNaN(date.getTime())) return "";
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
 
   return date.toISOString().split("T")[0];
 };
@@ -42,46 +47,98 @@ const formatDateTime = (dateValue) => {
 
   const date = new Date(dateValue);
 
-  if (Number.isNaN(date.getTime())) return "—";
+  if (Number.isNaN(date.getTime())) {
+    return "—";
+  }
 
-  return date.toLocaleString("en-IN");
+  return date.toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+const getWhatsAppNumber = (phone) => {
+  const cleanedPhone = String(phone || "").replace(/\D/g, "");
+
+  if (cleanedPhone.startsWith("91") && cleanedPhone.length > 10) {
+    return cleanedPhone;
+  }
+
+  return `91${cleanedPhone}`;
 };
 
 const statusBadge = (status) => {
-  const base = "rounded-full px-3 py-1 text-[11px] font-black";
+  const base =
+    "inline-flex items-center rounded-full px-3 py-1 text-[11px] font-black";
 
-  if (status === "interested") {
-    return `${base} bg-emerald-400/10 text-emerald-300`;
+  switch (status) {
+    case "interested":
+      return `${base} bg-success-soft text-success`;
+
+    case "converted":
+      return `${base} bg-primary-soft text-primary-dark`;
+
+    case "lost":
+    case "not_interested":
+    case "invalid_number":
+      return `${base} bg-danger-soft text-danger`;
+
+    case "follow_up":
+      return `${base} bg-warning-soft text-warning`;
+
+    case "proposal_sent":
+    case "contacted":
+    case "requirement_asked":
+      return `${base} bg-info-soft text-info`;
+
+    default:
+      return `${base} bg-secondary-soft text-secondary`;
   }
+};
 
-  if (status === "converted") {
-    return `${base} bg-cyan-400/10 text-cyan-300`;
+const callStatusBadge = (status) => {
+  const base =
+    "inline-flex items-center rounded-full px-3 py-1 text-[11px] font-black";
+
+  switch (status) {
+    case "called":
+      return `${base} bg-success-soft text-success`;
+
+    case "not_picked":
+    case "busy":
+      return `${base} bg-warning-soft text-warning`;
+
+    case "wrong_number":
+      return `${base} bg-danger-soft text-danger`;
+
+    case "whatsapp_sent":
+    case "meeting_scheduled":
+      return `${base} bg-info-soft text-info`;
+
+    default:
+      return `${base} bg-secondary-soft text-secondary`;
   }
-
-  if (status === "lost") {
-    return `${base} bg-red-400/10 text-red-300`;
-  }
-
-  if (status === "follow_up") {
-    return `${base} bg-yellow-400/10 text-yellow-300`;
-  }
-
-  if (status === "proposal_sent") {
-    return `${base} bg-blue-400/10 text-blue-300`;
-  }
-
-  return `${base} bg-white/10 text-slate-300`;
 };
 
 const InfoItem = ({ label, value, icon: Icon }) => {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/3 p-4">
-      <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
-        {Icon ? <Icon size={14} className="text-cyan-300" /> : null}
+    <div className="rounded-2xl border border-border-soft bg-bg-soft p-4 transition hover:border-primary/25 hover:bg-primary-soft/40">
+      <div className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-soft">
+        {Icon ? (
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary-soft text-primary-dark">
+            <Icon size={14} />
+          </span>
+        ) : null}
+
         {label}
       </div>
 
-      <p className="wrap-break-word text-sm font-bold text-white">{value}</p>
+      <p className="break-words text-sm font-bold leading-6 text-secondary">
+        {value}
+      </p>
     </div>
   );
 };
@@ -89,11 +146,12 @@ const InfoItem = ({ label, value, icon: Icon }) => {
 export default function LeadDetailPage() {
   const router = useRouter();
   const params = useParams();
-  const leadId = params.id;
+  const leadId = params?.id;
 
   const [lead, setLead] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const [form, setForm] = useState({
     callStatus: "not_called",
@@ -122,21 +180,28 @@ export default function LeadDetailPage() {
       setLoading(true);
 
       const { data } = await API.get(`/api/leads/${leadId}`);
+      const fetchedLead = data?.lead;
 
-      setLead(data.lead);
+      if (!fetchedLead) {
+        setLead(null);
+        return;
+      }
+
+      setLead(fetchedLead);
 
       setForm({
-        callStatus: data.lead.callStatus || "not_called",
-        leadStatus: data.lead.leadStatus || "new",
-        serviceRequired: data.lead.serviceRequired || "not_sure",
-        requirementNote: data.lead.requirementNote || "",
-        estimatedBudget: data.lead.estimatedBudget || "",
-        convertedAmount: data.lead.convertedAmount || "",
-        lostReason: data.lead.lostReason || "",
-        followUpDate: formatDateForInput(data.lead.followUpDate),
+        callStatus: fetchedLead.callStatus || "not_called",
+        leadStatus: fetchedLead.leadStatus || "new",
+        serviceRequired: fetchedLead.serviceRequired || "not_sure",
+        requirementNote: fetchedLead.requirementNote || "",
+        estimatedBudget: fetchedLead.estimatedBudget || "",
+        convertedAmount: fetchedLead.convertedAmount || "",
+        lostReason: fetchedLead.lostReason || "",
+        followUpDate: formatDateForInput(fetchedLead.followUpDate),
       });
     } catch (error) {
       toast.error(error?.response?.data?.message || "Failed to fetch lead");
+      setLead(null);
     } finally {
       setLoading(false);
     }
@@ -148,15 +213,17 @@ export default function LeadDetailPage() {
     }
   }, [leadId]);
 
-  const handleChange = (e) => {
-    setForm((prev) => ({
-      ...prev,
-      [e.target.name]: e.target.value,
+  const handleChange = (event) => {
+    const { name, value } = event.target;
+
+    setForm((previous) => ({
+      ...previous,
+      [name]: value,
     }));
   };
 
-  const handleUpdate = async (e) => {
-    e.preventDefault();
+  const handleUpdate = async (event) => {
+    event.preventDefault();
 
     try {
       setSaving(true);
@@ -166,12 +233,12 @@ export default function LeadDetailPage() {
         estimatedBudget: Number(form.estimatedBudget || 0),
         convertedAmount: Number(form.convertedAmount || 0),
         followUpDate: form.followUpDate || null,
+        lostReason: form.leadStatus === "lost" ? form.lostReason : "",
       };
 
       const { data } = await API.put(`/api/leads/${leadId}`, payload);
 
-      setLead(data.lead);
-
+      setLead(data?.lead || lead);
       toast.success("Lead updated successfully");
     } catch (error) {
       toast.error(error?.response?.data?.message || "Failed to update lead");
@@ -185,24 +252,37 @@ export default function LeadDetailPage() {
       "Are you sure you want to delete this lead?",
     );
 
-    if (!confirmDelete) return;
+    if (!confirmDelete) {
+      return;
+    }
 
     try {
+      setDeleting(true);
+
       await API.delete(`/api/leads/${leadId}`);
 
       toast.success("Lead deleted successfully");
-
       router.push("/admin/leads");
     } catch (error) {
       toast.error(error?.response?.data?.message || "Failed to delete lead");
+    } finally {
+      setDeleting(false);
     }
   };
 
   if (loading) {
     return (
       <AdminShell>
-        <div className="flex h-[70vh] items-center justify-center">
-          <Loader2 className="animate-spin text-cyan-400" size={34} />
+        <div className="flex min-h-[70vh] items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-soft">
+              <Loader2 className="animate-spin text-primary" size={30} />
+            </div>
+
+            <p className="text-sm font-semibold text-muted">
+              Loading lead details...
+            </p>
+          </div>
         </div>
       </AdminShell>
     );
@@ -211,8 +291,25 @@ export default function LeadDetailPage() {
   if (!lead) {
     return (
       <AdminShell>
-        <div className="rounded-3xl border border-white/10 bg-white/4 p-10 text-center text-slate-400">
-          Lead not found.
+        <div className="mx-auto flex min-h-[60vh] max-w-3xl items-center justify-center">
+          <div className="w-full rounded-[24px] border border-border-soft bg-white p-8 text-center shadow-[var(--shadow-card)] md:p-12">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-soft text-primary-dark">
+              <Phone size={28} />
+            </div>
+
+            <h1 className="mt-5 text-2xl font-black text-secondary">
+              Lead not found
+            </h1>
+
+            <p className="mt-2 text-sm leading-6 text-muted">
+              This lead may have been removed or the link may be incorrect.
+            </p>
+
+            <Link href="/admin/leads" className="btn-primary mt-6">
+              <ArrowLeft size={17} />
+              Back to Leads
+            </Link>
+          </div>
         </div>
       </AdminShell>
     );
@@ -220,74 +317,96 @@ export default function LeadDetailPage() {
 
   return (
     <AdminShell>
-      <Toaster position="top-right" />
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 3500,
+          style: {
+            background: "var(--secondary)",
+            color: "#ffffff",
+            border: "1px solid rgba(255,255,255,0.1)",
+            borderRadius: "14px",
+          },
+        }}
+      />
 
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-6 overflow-hidden rounded-3xl border border-cyan-400/20 bg-linear-to-br from-cyan-400/15 via-white/4 to-slate-950 p-5 md:mb-8 md:p-7">
+      <div className="mx-auto w-full max-w-[1400px]">
+        {/* Lead header */}
+        <header className="mb-6 overflow-hidden rounded-[24px] border border-primary/20 bg-[linear-gradient(135deg,var(--bg-warm)_0%,var(--bg-card)_55%,var(--secondary-soft)_100%)] p-5 shadow-[var(--shadow-card)] md:mb-8 md:p-7">
           <Link
             href="/admin/leads"
-            className="mb-5 inline-flex items-center gap-2 text-sm font-bold text-slate-300 hover:text-white"
+            className="mb-5 inline-flex items-center gap-2 text-sm font-bold text-muted transition hover:text-primary-dark"
           >
             <ArrowLeft size={17} />
             Back to Leads
           </Link>
 
-          <div className="flex flex-col justify-between gap-5 md:flex-row md:items-end">
+          <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
             <div>
-              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs font-black uppercase tracking-[0.2em] text-cyan-300">
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary-soft px-3 py-1.5 text-xs font-black uppercase tracking-[0.2em] text-primary-dark">
                 <Phone size={14} />
                 Lead Detail
               </div>
 
-              <h1 className="text-3xl font-black text-white md:text-5xl">
+              <h1 className="break-words text-3xl font-black tracking-tight text-secondary md:text-5xl">
                 {lead.phone}
               </h1>
 
-              <div className="mt-3 flex flex-wrap gap-2">
+              <div className="mt-4 flex flex-wrap gap-2">
                 <span className={statusBadge(form.leadStatus)}>
                   {formatLabel(form.leadStatus)}
                 </span>
 
-                <span className="rounded-full bg-white/10 px-3 py-1 text-[11px] font-black text-slate-300">
+                <span className={callStatusBadge(form.callStatus)}>
                   {formatLabel(form.callStatus)}
                 </span>
 
-                <span className="rounded-full bg-white/10 px-3 py-1 text-[11px] font-black text-slate-300">
+                <span className="inline-flex items-center rounded-full bg-secondary px-3 py-1 text-[11px] font-black text-white">
                   {formatLabel(lead.source)}
                 </span>
               </div>
 
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">
-                Update call result, requirement, follow-up date, budget and
-                conversion details.
+              <p className="mt-4 max-w-2xl text-sm leading-6 text-muted md:text-base">
+                Update the call result, service requirement, follow-up date,
+                budget and conversion details.
               </p>
             </div>
 
             <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
               <a
                 href={`tel:${lead.phone}`}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 px-5 py-3 text-sm font-bold text-white hover:bg-white/10"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-border-soft bg-white px-5 text-sm font-bold text-secondary shadow-sm transition hover:border-primary/30 hover:bg-primary-soft"
               >
                 <Phone size={18} />
                 Call
               </a>
 
               <a
-                href={`https://wa.me/91${lead.phone}`}
+                href={`https://wa.me/${getWhatsAppNumber(lead.phone)}`}
                 target="_blank"
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-400 px-5 py-3 text-sm font-black text-slate-950 hover:bg-emerald-300"
+                rel="noreferrer"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-secondary px-5 text-sm font-black text-white shadow-[0_12px_28px_rgba(35,47,62,0.2)] transition hover:bg-secondary-dark"
               >
                 <Send size={18} />
                 WhatsApp
               </a>
             </div>
           </div>
-        </div>
+        </header>
 
-        <div className="grid gap-6 xl:grid-cols-[380px_1fr]">
+        <div className="grid gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
+          {/* Left information column */}
           <aside className="space-y-5">
-            <div className="rounded-3xl border border-white/10 bg-white/4 p-5 md:p-6">
-              <h2 className="mb-5 text-lg font-black">Lead Information</h2>
+            <section className="rounded-[24px] border border-border-soft bg-white p-5 shadow-[var(--shadow-card)] md:p-6">
+              <div className="mb-5">
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary-dark">
+                  Overview
+                </p>
+
+                <h2 className="mt-2 text-lg font-black text-secondary">
+                  Lead Information
+                </h2>
+              </div>
 
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
                 <InfoItem
@@ -331,74 +450,127 @@ export default function LeadDetailPage() {
                 />
               </div>
 
-              <div className="mt-4 rounded-2xl bg-slate-950 p-4">
-                <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+              <div className="mt-4 rounded-2xl border border-primary/15 bg-bg-warm p-4">
+                <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-primary-dark">
                   Finder Note
                 </p>
 
-                <p className="text-sm leading-6 text-slate-300">
+                <p className="break-words text-sm leading-6 text-muted">
                   {lead.note || "No note added"}
                 </p>
               </div>
-            </div>
+            </section>
 
-            <div className="rounded-3xl border border-white/10 bg-white/4 p-5">
-              <h3 className="text-lg font-black">Revenue Summary</h3>
+            <section className="rounded-3xl border border-primary/20 bg-bg-warm p-5 shadow-[var(--shadow-card)">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary text-white shadow-[0_10px_24px_rgba(255,153,0,0.25)]">
+                  <IndianRupee size={21} />
+                </div>
 
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <div className="rounded-2xl bg-slate-950 p-4">
-                  <p className="text-xs text-slate-500">Estimated</p>
-                  <p className="mt-1 text-lg font-black text-white">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary-dark">
+                    Financials
+                  </p>
+
+                  <h3 className="mt-1 text-lg font-black text-secondary">
+                    Revenue Summary
+                  </h3>
+                </div>
+              </div>
+
+              <div className="mt-5 grid grid-cols-2 gap-3">
+                <div className="rounded-2xl border border-border-soft bg-white p-4">
+                  <p className="text-xs font-semibold text-muted">Estimated</p>
+
+                  <p className="mt-1 wrap-break-word text-lg font-black text-secondary">
                     ₹{revenueSummary.estimated.toLocaleString("en-IN")}
                   </p>
                 </div>
 
-                <div className="rounded-2xl bg-slate-950 p-4">
-                  <p className="text-xs text-slate-500">Converted</p>
-                  <p className="mt-1 text-lg font-black text-emerald-300">
+                <div className="rounded-2xl border border-primary/20 bg-primary-soft p-4">
+                  <p className="text-xs font-semibold text-primary-dark">
+                    Converted
+                  </p>
+
+                  <p className="mt-1 wrap-break-word text-lg font-black text-primary-dark">
                     ₹{revenueSummary.converted.toLocaleString("en-IN")}
                   </p>
                 </div>
+
+                <div className="col-span-2 rounded-2xl border border-border-soft bg-secondary-soft p-4">
+                  <p className="text-xs font-semibold text-muted">
+                    Estimated difference
+                  </p>
+
+                  <p
+                    className={`mt-1 wrap-break-word text-lg font-black ${
+                      revenueSummary.difference < 0
+                        ? "text-danger"
+                        : "text-secondary"
+                    }`}
+                  >
+                    ₹
+                    {Math.abs(revenueSummary.difference).toLocaleString(
+                      "en-IN",
+                    )}
+                  </p>
+                </div>
               </div>
-            </div>
+            </section>
 
             <button
+              type="button"
               onClick={handleDelete}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl border border-red-400/20 bg-red-400/10 px-5 py-3 text-sm font-black text-red-300 hover:bg-red-400/20"
+              disabled={deleting}
+              className="btn-danger w-full py-3.5"
             >
-              <Trash2 size={18} />
-              Delete Lead
+              {deleting ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : (
+                <Trash2 size={18} />
+              )}
+
+              {deleting ? "Deleting..." : "Delete Lead"}
             </button>
           </aside>
 
+          {/* Update form */}
           <form
             onSubmit={handleUpdate}
-            className="rounded-3xl border border-white/10 bg-white/4 p-4 shadow-2xl shadow-black/20 md:p-6"
+            className="rounded-3xl border border-border-soft bg-white p-4 shadow-(--shadow-card) md:p-6"
           >
-            <div className="mb-6 flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-400/10 text-cyan-300">
+            <div className="mb-6 flex items-center gap-3 border-b border-border-soft pb-5">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary-soft text-primary-dark">
                 <CheckCircle2 size={24} />
               </div>
 
               <div>
-                <h2 className="text-xl font-black">Update After Call</h2>
-                <p className="text-sm text-slate-400">
-                  Keep the lead status accurate after every interaction.
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary-dark">
+                  Lead Progress
+                </p>
+
+                <h2 className="mt-1 text-xl font-black text-secondary">
+                  Update After Call
+                </h2>
+
+                <p className="mt-1 text-sm text-muted">
+                  Keep the lead information accurate after every interaction.
                 </p>
               </div>
             </div>
 
             <div className="grid gap-5 md:grid-cols-2">
               <div>
-                <label className="mb-2 block text-sm font-bold text-slate-300">
+                <label htmlFor="callStatus" className="form-label">
                   Call Status
                 </label>
 
                 <select
+                  id="callStatus"
                   name="callStatus"
                   value={form.callStatus}
                   onChange={handleChange}
-                  className="w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-4 text-sm font-bold outline-none focus:border-cyan-400/50 md:py-3"
+                  className="form-input min-h-12.5 font-semibold"
                 >
                   <option value="not_called">Not Called</option>
                   <option value="called">Called</option>
@@ -411,15 +583,16 @@ export default function LeadDetailPage() {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-bold text-slate-300">
+                <label htmlFor="leadStatus" className="form-label">
                   Lead Status
                 </label>
 
                 <select
+                  id="leadStatus"
                   name="leadStatus"
                   value={form.leadStatus}
                   onChange={handleChange}
-                  className="w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-4 text-sm font-bold outline-none focus:border-cyan-400/50 md:py-3"
+                  className="form-input min-h-12.5 font-semibold"
                 >
                   <option value="new">New</option>
                   <option value="contacted">Contacted</option>
@@ -435,15 +608,16 @@ export default function LeadDetailPage() {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-bold text-slate-300">
+                <label htmlFor="serviceRequired" className="form-label">
                   Service Required
                 </label>
 
                 <select
+                  id="serviceRequired"
                   name="serviceRequired"
                   value={form.serviceRequired}
                   onChange={handleChange}
-                  className="w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-4 text-sm font-bold outline-none focus:border-cyan-400/50 md:py-3"
+                  className="form-input min-h-12.5 font-semibold"
                 >
                   <option value="not_sure">Not Sure</option>
                   <option value="website_development">
@@ -460,104 +634,127 @@ export default function LeadDetailPage() {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-bold text-slate-300">
+                <label htmlFor="followUpDate" className="form-label">
                   Follow-up Date
                 </label>
 
-                <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-950 px-4 py-4 focus-within:border-cyan-400/50 md:py-3">
-                  <Calendar size={18} className="text-slate-500" />
+                <div className="flex min-h-12.5 items-center gap-3 rounded-[14px] border border-border-soft bg-white px-4 transition hover:border-border-medium focus-within:border-primary focus-within:shadow-[0_0_0_4px_rgba(255,153,0,0.14)]">
+                  <Calendar size={18} className="shrink-0 text-primary-dark" />
+
                   <input
+                    id="followUpDate"
                     type="date"
                     name="followUpDate"
                     value={form.followUpDate}
                     onChange={handleChange}
-                    className="w-full bg-transparent text-sm font-bold outline-none"
+                    className="w-full bg-transparent text-sm font-semibold text-main outline-none color-light"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-bold text-slate-300">
+                <label htmlFor="estimatedBudget" className="form-label">
                   Estimated Budget
                 </label>
 
-                <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-950 px-4 py-4 focus-within:border-cyan-400/50 md:py-3">
-                  <CircleDollarSign size={18} className="text-slate-500" />
+                <div className="flex min-h-12.5 items-center gap-3 rounded-[14px] border border-border-soft bg-white px-4 transition hover:border-border-medium focus-within:border-primary focus-within:shadow-[0_0_0_4px_rgba(255,153,0,0.14)]">
+                  <IndianRupee
+                    size={18}
+                    className="shrink-0 text-primary-dark"
+                  />
+
                   <input
+                    id="estimatedBudget"
                     type="number"
                     name="estimatedBudget"
+                    min="0"
                     value={form.estimatedBudget}
                     onChange={handleChange}
                     placeholder="Example: 20000"
-                    className="w-full bg-transparent text-sm font-bold outline-none placeholder:text-slate-600"
+                    className="w-full bg-transparent text-sm font-semibold text-main outline-none placeholder:text-soft"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-bold text-slate-300">
+                <label htmlFor="convertedAmount" className="form-label">
                   Converted Amount
                 </label>
 
-                <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-950 px-4 py-4 focus-within:border-cyan-400/50 md:py-3">
-                  <CircleDollarSign size={18} className="text-slate-500" />
+                <div className="flex min-h-12.5 items-center gap-3 rounded-[14px] border border-border-soft bg-white px-4 transition hover:border-border-medium focus-within:border-primary focus-within:shadow-[0_0_0_4px_rgba(255,153,0,0.14)]">
+                  <IndianRupee
+                    size={18}
+                    className="shrink-0 text-primary-dark"
+                  />
+
                   <input
+                    id="convertedAmount"
                     type="number"
                     name="convertedAmount"
+                    min="0"
                     value={form.convertedAmount}
                     onChange={handleChange}
                     placeholder="Example: 18000"
-                    className="w-full bg-transparent text-sm font-bold outline-none placeholder:text-slate-600"
+                    className="w-full bg-transparent text-sm font-semibold text-main outline-none placeholder:text-soft"
                   />
                 </div>
               </div>
 
-              {form.leadStatus === "lost" ? (
+              {form.leadStatus === "lost" && (
                 <div className="md:col-span-2">
-                  <label className="mb-2 block text-sm font-bold text-slate-300">
+                  <label htmlFor="lostReason" className="form-label">
                     Lost Reason
                   </label>
 
                   <textarea
+                    id="lostReason"
                     name="lostReason"
                     value={form.lostReason}
                     onChange={handleChange}
                     rows={3}
-                    placeholder="Example: Budget issue / already has developer / not interested"
-                    className="w-full resize-none rounded-2xl border border-white/10 bg-slate-950 px-4 py-4 text-sm outline-none placeholder:text-slate-600 focus:border-cyan-400/50"
+                    required
+                    placeholder="Example: Budget issue, already has a developer, or not interested"
+                    className="form-input"
                   />
                 </div>
-              ) : null}
+              )}
 
               <div className="md:col-span-2">
-                <label className="mb-2 flex items-center gap-2 text-sm font-bold text-slate-300">
-                  <FileText size={16} className="text-cyan-300" />
+                <label
+                  htmlFor="requirementNote"
+                  className="form-label flex items-center gap-2"
+                >
+                  <FileText size={16} className="text-primary-dark" />
                   Requirement Note
                 </label>
 
                 <textarea
+                  id="requirementNote"
                   name="requirementNote"
                   value={form.requirementNote}
                   onChange={handleChange}
                   rows={6}
-                  placeholder="Example: Client wants a business website with WhatsApp button, enquiry form and SEO setup..."
-                  className="w-full resize-none rounded-2xl border border-white/10 bg-slate-950 px-4 py-4 text-sm outline-none placeholder:text-slate-600 focus:border-cyan-400/50"
+                  placeholder="Example: Client wants a business website with a WhatsApp button, enquiry form and SEO setup..."
+                  className="form-input"
                 />
               </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={saving}
-              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-cyan-400 px-5 py-4 text-sm font-black text-slate-950 shadow-lg shadow-cyan-950/40 hover:bg-cyan-300 disabled:opacity-60 md:w-auto md:py-3"
-            >
-              {saving ? (
-                <Loader2 size={18} className="animate-spin" />
-              ) : (
-                <Save size={18} />
-              )}
-              {saving ? "Saving..." : "Save Changes"}
-            </button>
+            <div className="mt-6 flex justify-end border-t border-border-soft pt-6">
+              <button
+                type="submit"
+                disabled={saving}
+                className="btn-primary w-full py-3.5 md:w-auto"
+              >
+                {saving ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : (
+                  <Save size={18} />
+                )}
+
+                {saving ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
           </form>
         </div>
       </div>
