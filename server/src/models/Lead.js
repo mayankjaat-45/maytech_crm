@@ -2,11 +2,30 @@ import mongoose from "mongoose";
 
 export const leadSchema = new mongoose.Schema(
   {
+    customerName: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
     phone: {
       type: String,
       required: true,
       trim: true,
       unique: true,
+    },
+
+    email: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      default: "",
+    },
+
+    companyName: {
+      type: String,
+      trim: true,
+      default: "",
     },
 
     source: {
@@ -35,10 +54,14 @@ export const leadSchema = new mongoose.Schema(
       default: null,
     },
 
+    /*
+     * Internal CRM leads will contain the user who added the lead.
+     * Public website leads can have addedBy as null.
+     */
     addedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+      default: null,
     },
 
     callStatus: {
@@ -89,6 +112,34 @@ export const leadSchema = new mongoose.Schema(
       default: "not_sure",
     },
 
+    /*
+     * Exact service information coming from the website.
+     * Example:
+     * websiteServiceName: React JS Website Development
+     * websiteServiceSlug: react-js-website-development
+     */
+    websiteServiceName: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
+    websiteServiceSlug: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      default: "",
+    },
+
+    /*
+     * Stores the page from which the enquiry was submitted.
+     */
+    websitePageUrl: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+
     requirementNote: {
       type: String,
       trim: true,
@@ -98,11 +149,13 @@ export const leadSchema = new mongoose.Schema(
     estimatedBudget: {
       type: Number,
       default: 0,
+      min: 0,
     },
 
     convertedAmount: {
       type: Number,
       default: 0,
+      min: 0,
     },
 
     convertedAt: {
@@ -126,14 +179,20 @@ export const leadSchema = new mongoose.Schema(
       default: null,
     },
   },
-  { timestamps: true },
+  {
+    timestamps: true,
+  },
 );
 
 leadSchema.index({ source: 1 });
 leadSchema.index({ assignedTo: 1 });
+leadSchema.index({ addedBy: 1 });
 leadSchema.index({ callStatus: 1 });
 leadSchema.index({ leadStatus: 1 });
+leadSchema.index({ serviceRequired: 1 });
 leadSchema.index({ followUpDate: 1 });
+leadSchema.index({ email: 1 });
+leadSchema.index({ createdAt: -1 });
 
 const Lead = mongoose.model("Lead", leadSchema);
 
