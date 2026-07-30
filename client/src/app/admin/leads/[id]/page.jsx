@@ -60,6 +60,12 @@ const formatDateTime = (dateValue) => {
   });
 };
 
+const formatCurrency = (value) => {
+  return Number(value || 0).toLocaleString("en-IN", {
+    maximumFractionDigits: 2,
+  });
+};
+
 const getWhatsAppNumber = (phone) => {
   const cleanedPhone = String(phone || "").replace(/\D/g, "");
 
@@ -125,21 +131,45 @@ const callStatusBadge = (status) => {
 
 const InfoItem = ({ label, value, icon: Icon }) => {
   return (
-    <div className="rounded-2xl border border-border-soft bg-bg-soft p-4 transition hover:border-primary/25 hover:bg-primary-soft/40">
+    <div className="rounded-2xl border border-border-soft bg-bg-soft p-4 transition-all duration-200 hover:border-primary/25 hover:bg-primary-soft/40">
       <div className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-soft">
         {Icon ? (
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary-soft text-primary-dark">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary-dark">
             <Icon size={14} />
           </span>
         ) : null}
 
-        {label}
+        <span>{label}</span>
       </div>
 
-      <p className="break-words text-sm font-bold leading-6 text-secondary">
+      <p className="wrap-break-word text-sm font-bold leading-6 text-secondary">
         {value}
       </p>
     </div>
+  );
+};
+
+const ToastContainer = () => {
+  return (
+    <Toaster
+      position="top-right"
+      toastOptions={{
+        duration: 3500,
+        style: {
+          background: "var(--secondary)",
+          color: "#ffffff",
+          border: "1px solid rgba(255,255,255,0.1)",
+          borderRadius: "14px",
+          boxShadow: "var(--shadow-medium)",
+        },
+        success: {
+          iconTheme: {
+            primary: "var(--primary)",
+            secondary: "#ffffff",
+          },
+        },
+      }}
+    />
   );
 };
 
@@ -200,6 +230,8 @@ export default function LeadDetailPage() {
         followUpDate: formatDateForInput(fetchedLead.followUpDate),
       });
     } catch (error) {
+      console.log(error?.response?.data || error?.message);
+
       toast.error(error?.response?.data?.message || "Failed to fetch lead");
       setLead(null);
     } finally {
@@ -238,9 +270,26 @@ export default function LeadDetailPage() {
 
       const { data } = await API.put(`/api/leads/${leadId}`, payload);
 
-      setLead(data?.lead || lead);
+      const updatedLead = data?.lead || lead;
+
+      setLead(updatedLead);
+
+      setForm((previous) => ({
+        ...previous,
+        estimatedBudget:
+          updatedLead?.estimatedBudget ?? previous.estimatedBudget,
+        convertedAmount:
+          updatedLead?.convertedAmount ?? previous.convertedAmount,
+        lostReason: updatedLead?.lostReason ?? previous.lostReason,
+        followUpDate:
+          formatDateForInput(updatedLead?.followUpDate) ||
+          previous.followUpDate,
+      }));
+
       toast.success("Lead updated successfully");
     } catch (error) {
+      console.log(error?.response?.data || error?.message);
+
       toast.error(error?.response?.data?.message || "Failed to update lead");
     } finally {
       setSaving(false);
@@ -262,8 +311,10 @@ export default function LeadDetailPage() {
       await API.delete(`/api/leads/${leadId}`);
 
       toast.success("Lead deleted successfully");
-      router.push("/admin/leads");
+      router.replace("/admin/leads");
     } catch (error) {
+      console.log(error?.response?.data || error?.message);
+
       toast.error(error?.response?.data?.message || "Failed to delete lead");
     } finally {
       setDeleting(false);
@@ -273,6 +324,8 @@ export default function LeadDetailPage() {
   if (loading) {
     return (
       <AdminShell>
+        <ToastContainer />
+
         <div className="flex min-h-[70vh] items-center justify-center">
           <div className="flex flex-col items-center gap-4">
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-soft">
@@ -291,8 +344,10 @@ export default function LeadDetailPage() {
   if (!lead) {
     return (
       <AdminShell>
+        <ToastContainer />
+
         <div className="mx-auto flex min-h-[60vh] max-w-3xl items-center justify-center">
-          <div className="w-full rounded-[24px] border border-border-soft bg-white p-8 text-center shadow-[var(--shadow-card)] md:p-12">
+          <div className="w-full rounded-3xl border border-border-soft bg-white p-8 text-center shadow-(--shadow-card)] md:p-12">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-soft text-primary-dark">
               <Phone size={28} />
             </div>
@@ -317,22 +372,11 @@ export default function LeadDetailPage() {
 
   return (
     <AdminShell>
-      <Toaster
-        position="top-right"
-        toastOptions={{
-          duration: 3500,
-          style: {
-            background: "var(--secondary)",
-            color: "#ffffff",
-            border: "1px solid rgba(255,255,255,0.1)",
-            borderRadius: "14px",
-          },
-        }}
-      />
+      <ToastContainer />
 
-      <div className="mx-auto w-full max-w-[1400px]">
-        {/* Lead header */}
-        <header className="mb-6 overflow-hidden rounded-[24px] border border-primary/20 bg-[linear-gradient(135deg,var(--bg-warm)_0%,var(--bg-card)_55%,var(--secondary-soft)_100%)] p-5 shadow-[var(--shadow-card)] md:mb-8 md:p-7">
+      <div className="mx-auto w-full max-w-350">
+        {/* Header */}
+        <header className="mb-6 overflow-hidden rounded-3xl border border-primary/20 bg-[linear-gradient(135deg,var(--bg-warm)_0%,var(--bg-card)_55%,var(--secondary-soft)_100%)] p-5 shadow-(--shadow-card) md:mb-8 md:p-7">
           <Link
             href="/admin/leads"
             className="mb-5 inline-flex items-center gap-2 text-sm font-bold text-muted transition hover:text-primary-dark"
@@ -342,13 +386,13 @@ export default function LeadDetailPage() {
           </Link>
 
           <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
-            <div>
+            <div className="min-w-0">
               <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary-soft px-3 py-1.5 text-xs font-black uppercase tracking-[0.2em] text-primary-dark">
                 <Phone size={14} />
                 Lead Detail
               </div>
 
-              <h1 className="break-words text-3xl font-black tracking-tight text-secondary md:text-5xl">
+              <h1 className="wrap-break-word text-3xl font-black tracking-tight text-secondary md:text-5xl">
                 {lead.phone}
               </h1>
 
@@ -385,7 +429,7 @@ export default function LeadDetailPage() {
                 href={`https://wa.me/${getWhatsAppNumber(lead.phone)}`}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-secondary px-5 text-sm font-black text-white shadow-[0_12px_28px_rgba(35,47,62,0.2)] transition hover:bg-secondary-dark"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-primary px-5 text-sm font-black text-white shadow-[0_12px_28px_rgba(35,47,62,0.2)] transition hover:bg-primary-dark"
               >
                 <Send size={18} />
                 WhatsApp
@@ -395,9 +439,9 @@ export default function LeadDetailPage() {
         </header>
 
         <div className="grid gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
-          {/* Left information column */}
+          {/* Lead information */}
           <aside className="space-y-5">
-            <section className="rounded-[24px] border border-border-soft bg-white p-5 shadow-[var(--shadow-card)] md:p-6">
+            <section className="rounded-3xl border border-border-soft bg-white p-5 shadow-(--shadow-card) md:p-6">
               <div className="mb-5">
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary-dark">
                   Overview
@@ -455,15 +499,16 @@ export default function LeadDetailPage() {
                   Finder Note
                 </p>
 
-                <p className="break-words text-sm leading-6 text-muted">
+                <p className="wrap-break-word text-sm leading-6 text-muted">
                   {lead.note || "No note added"}
                 </p>
               </div>
             </section>
 
-            <section className="rounded-3xl border border-primary/20 bg-bg-warm p-5 shadow-[var(--shadow-card)">
+            {/* Revenue */}
+            <section className="rounded-3xl border border-primary/20 bg-bg-warm p-5 shadow-(--shadow-card)">
               <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary text-white shadow-[0_10px_24px_rgba(255,153,0,0.25)]">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary text-white shadow-[0_10px_24px_rgba(255,153,0,0.25)]">
                   <IndianRupee size={21} />
                 </div>
 
@@ -483,7 +528,7 @@ export default function LeadDetailPage() {
                   <p className="text-xs font-semibold text-muted">Estimated</p>
 
                   <p className="mt-1 wrap-break-word text-lg font-black text-secondary">
-                    ₹{revenueSummary.estimated.toLocaleString("en-IN")}
+                    ₹{formatCurrency(revenueSummary.estimated)}
                   </p>
                 </div>
 
@@ -493,7 +538,7 @@ export default function LeadDetailPage() {
                   </p>
 
                   <p className="mt-1 wrap-break-word text-lg font-black text-primary-dark">
-                    ₹{revenueSummary.converted.toLocaleString("en-IN")}
+                    ₹{formatCurrency(revenueSummary.converted)}
                   </p>
                 </div>
 
@@ -509,10 +554,8 @@ export default function LeadDetailPage() {
                         : "text-secondary"
                     }`}
                   >
-                    ₹
-                    {Math.abs(revenueSummary.difference).toLocaleString(
-                      "en-IN",
-                    )}
+                    {revenueSummary.difference < 0 ? "-₹" : "₹"}
+                    {formatCurrency(Math.abs(revenueSummary.difference))}
                   </p>
                 </div>
               </div>
@@ -539,7 +582,7 @@ export default function LeadDetailPage() {
             onSubmit={handleUpdate}
             className="rounded-3xl border border-border-soft bg-white p-4 shadow-(--shadow-card) md:p-6"
           >
-            <div className="mb-6 flex items-center gap-3 border-b border-border-soft pb-5">
+            <div className="mb-6 flex items-start gap-3 border-b border-border-soft pb-5">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary-soft text-primary-dark">
                 <CheckCircle2 size={24} />
               </div>
@@ -553,7 +596,7 @@ export default function LeadDetailPage() {
                   Update After Call
                 </h2>
 
-                <p className="mt-1 text-sm text-muted">
+                <p className="mt-1 text-sm leading-6 text-muted">
                   Keep the lead information accurate after every interaction.
                 </p>
               </div>

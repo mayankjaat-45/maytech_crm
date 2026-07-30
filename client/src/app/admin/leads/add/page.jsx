@@ -3,14 +3,18 @@
 import AdminShell from "@/components/admin/AdminShell";
 import { API } from "@/lib/api";
 import {
+  ArrowLeft,
   CheckCircle2,
+  Info,
   Loader2,
   MapPin,
   MessageCircle,
   Phone,
   Save,
+  Send,
   UserRound,
 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
@@ -19,9 +23,28 @@ const cleanPhone = (phone) => {
   return String(phone || "").replace(/\D/g, "");
 };
 
+const getWhatsAppNumber = (phone) => {
+  const cleanedPhone = cleanPhone(phone);
+
+  if (!cleanedPhone) {
+    return "";
+  }
+
+  if (cleanedPhone.startsWith("91") && cleanedPhone.length > 10) {
+    return cleanedPhone;
+  }
+
+  return `91${cleanedPhone}`;
+};
+
 const formatLabel = (value) => {
-  if (!value) return "N/A";
-  return value.replaceAll("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  if (!value) {
+    return "N/A";
+  }
+
+  return value
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase());
 };
 
 const createWhatsAppLink = ({
@@ -31,7 +54,7 @@ const createWhatsAppLink = ({
   note,
   leadId,
 }) => {
-  const cleanedMemberPhone = cleanPhone(memberPhone);
+  const whatsappNumber = getWhatsAppNumber(memberPhone);
 
   const crmBaseUrl =
     process.env.NEXT_PUBLIC_CRM_URL ||
@@ -50,9 +73,31 @@ const createWhatsAppLink = ({
     crmUrl,
   ].join("\n");
 
-  return `https://wa.me/91${cleanedMemberPhone}?text=${encodeURIComponent(
-    message,
-  )}`;
+  return `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`;
+};
+
+const ToastContainer = () => {
+  return (
+    <Toaster
+      position="top-right"
+      toastOptions={{
+        duration: 3500,
+        style: {
+          background: "var(--secondary)",
+          color: "#ffffff",
+          border: "1px solid rgba(255,255,255,0.1)",
+          borderRadius: "14px",
+          boxShadow: "var(--shadow-medium)",
+        },
+        success: {
+          iconTheme: {
+            primary: "var(--primary)",
+            secondary: "#ffffff",
+          },
+        },
+      }}
+    />
+  );
 };
 
 export default function AddLeadPage() {
@@ -70,7 +115,7 @@ export default function AddLeadPage() {
   });
 
   const selectedUser = useMemo(() => {
-    return users.find((user) => user._id === form.assignedTo);
+    return users.find((user) => user._id === form.assignedTo) || null;
   }, [users, form.assignedTo]);
 
   const fetchUsers = async () => {
@@ -79,10 +124,13 @@ export default function AddLeadPage() {
 
       const { data } = await API.get("/api/auth/users");
 
-      setUsers(data.users || []);
+      setUsers(data?.users || []);
     } catch (error) {
-      console.log("USERS ERROR:", error?.response?.data || error.message);
+      console.log("USERS ERROR:", error?.response?.data || error?.message);
+
       toast.error(error?.response?.data?.message || "Failed to load users");
+
+      setUsers([]);
     } finally {
       setLoadingUsers(false);
     }
@@ -92,20 +140,27 @@ export default function AddLeadPage() {
     fetchUsers();
   }, []);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
+  const handleChange = (event) => {
+    const { name, value } = event.target;
 
-    setForm((prev) => ({
-      ...prev,
+    setForm((previous) => ({
+      ...previous,
       [name]: value,
     }));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (event) => {
+    event.preventDefault();
 
-    if (!form.phone.trim()) {
+    const cleanedLeadPhone = cleanPhone(form.phone);
+
+    if (!cleanedLeadPhone) {
       toast.error("Phone number is required");
+      return;
+    }
+
+    if (cleanedLeadPhone.length < 10) {
+      toast.error("Enter a valid phone number");
       return;
     }
 
@@ -113,33 +168,39 @@ export default function AddLeadPage() {
       setSaving(true);
 
       const payload = {
-        phone: form.phone.trim(),
+        phone: cleanedLeadPhone,
         source: form.source,
         note: form.note.trim(),
         assignedTo: form.assignedTo || null,
       };
 
       const { data } = await API.post("/api/leads", payload);
+      const createdLead = data?.lead;
+
+      if (!createdLead) {
+        throw new Error("Lead was created but response data is missing");
+      }
 
       toast.success("Lead added successfully");
 
       if (selectedUser?.phone) {
         const whatsappLink = createWhatsAppLink({
           memberPhone: selectedUser.phone,
-          leadPhone: data.lead.phone,
-          source: data.lead.source,
-          note: data.lead.note,
-          leadId: data.lead._id,
+          leadPhone: createdLead.phone,
+          source: createdLead.source,
+          note: createdLead.note,
+          leadId: createdLead._id,
         });
 
-        window.open(whatsappLink, "_blank");
+        window.open(whatsappLink, "_blank", "noopener,noreferrer");
       } else if (form.assignedTo) {
-        toast.error("Assigned user does not have WhatsApp number saved");
+        toast.error("Assigned user does not have a WhatsApp number saved");
       }
 
       router.push("/admin/leads");
     } catch (error) {
-      console.log("ADD LEAD ERROR:", error?.response?.data || error.message);
+      console.log("ADD LEAD ERROR:", error?.response?.data || error?.message);
+
       toast.error(error?.response?.data?.message || "Failed to add lead");
     } finally {
       setSaving(false);
@@ -148,76 +209,126 @@ export default function AddLeadPage() {
 
   return (
     <AdminShell>
-      <Toaster position="top-right" />
+      <ToastContainer />
 
-      <div className="mx-auto max-w-5xl">
-        <div className="mb-6 overflow-hidden rounded-3xl border border-cyan-400/20 bg-linear-to-br from-cyan-400/15 via-white/4 to-slate-950 p-5 md:mb-8 md:p-7">
-          <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-            <div>
-              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs font-black uppercase tracking-[0.2em] text-cyan-300">
+      <div className="mx-auto w-full max-w-300">
+        {/* Page header */}
+        <header className="mb-6 overflow-hidden rounded-3xl border border-primary/20 bg-[linear-gradient(135deg,var(--bg-warm)_0%,var(--bg-card)_58%,var(--secondary-soft)_100%)] p-5 shadow-(--shadow-card) md:mb-8 md:p-7">
+          <Link
+            href="/admin/leads"
+            className="mb-5 inline-flex items-center gap-2 text-sm font-bold text-muted transition hover:text-primary-dark"
+          >
+            <ArrowLeft size={17} />
+            Back to Leads
+          </Link>
+
+          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+            <div className="min-w-0">
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary-soft px-3 py-1.5 text-xs font-black uppercase tracking-[0.2em] text-primary-dark">
                 <CheckCircle2 size={14} />
                 Add Lead
               </div>
 
-              <h1 className="text-2xl font-black text-white md:text-4xl">
+              <h1 className="text-2xl font-black tracking-tight text-secondary md:text-4xl">
                 Add New Number
               </h1>
 
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-                Add phone number, source, note and assign it to a team member.
-                If the member has WhatsApp number saved, notification message
-                will open automatically.
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-muted md:text-base">
+                Add a phone number, source and note, then assign the lead to a
+                team member. A WhatsApp notification will open automatically
+                when the assigned member has a saved phone number.
               </p>
             </div>
 
-            <div className="rounded-3xl border border-white/10 bg-slate-950/70 p-4">
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            <div className="rounded-[22px] border border-primary/20 bg-white/85 p-4 shadow-sm backdrop-blur-sm">
+              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-primary-dark">
                 Quick Flow
               </p>
-              <p className="mt-2 text-sm font-bold text-white">
-                Save Lead → WhatsApp Opens → Send
-              </p>
+
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-sm font-black text-secondary">
+                <span>Save Lead</span>
+                <span className="text-primary">→</span>
+                <span>WhatsApp Opens</span>
+                <span className="text-primary">→</span>
+                <span>Send</span>
+              </div>
             </div>
           </div>
-        </div>
+        </header>
 
-        <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+          {/* Add lead form */}
           <form
             onSubmit={handleSubmit}
-            className="rounded-3xl border border-white/10 bg-white/4 p-4 shadow-2xl shadow-black/20 md:p-6"
+            className="rounded-3xl border border-border-soft bg-white p-4 shadow-(--shadow-card) md:p-6"
           >
-            <div className="space-y-5">
+            <div className="mb-6 flex items-start gap-3 border-b border-border-soft pb-5">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary-soft text-primary-dark">
+                <UserRound size={23} />
+              </div>
+
               <div>
-                <label className="mb-2 flex items-center gap-2 text-sm font-bold text-slate-300">
-                  <Phone size={16} className="text-cyan-300" />
-                  Phone Number *
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary-dark">
+                  Lead Information
+                </p>
+
+                <h2 className="mt-1 text-xl font-black text-secondary">
+                  Enter lead details
+                </h2>
+
+                <p className="mt-1 text-sm leading-6 text-muted">
+                  The phone number is the only required field.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-5">
+              {/* Phone */}
+              <div>
+                <label
+                  htmlFor="phone"
+                  className="form-label flex items-center gap-2"
+                >
+                  <Phone size={16} className="text-primary-dark" />
+                  Phone Number
+                  <span className="text-danger">*</span>
                 </label>
 
                 <input
+                  id="phone"
+                  type="tel"
                   name="phone"
                   value={form.phone}
                   onChange={handleChange}
                   placeholder="9876543210"
                   inputMode="numeric"
-                  className="w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-4 text-base font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-400/50 md:py-3 md:text-sm"
+                  autoComplete="tel"
+                  required
+                  className="form-input min-h-12.5 text-base font-bold md:text-sm"
                 />
 
-                <p className="mt-2 text-xs text-slate-500">
-                  Only phone number is required to create a basic lead.
+                <p className="mt-2 text-xs leading-5 text-soft">
+                  Enter the lead&apos;s mobile number without spaces or special
+                  characters.
                 </p>
               </div>
 
+              {/* Source */}
               <div>
-                <label className="mb-2 flex items-center gap-2 text-sm font-bold text-slate-300">
-                  <MapPin size={16} className="text-cyan-300" />
-                  Source
+                <label
+                  htmlFor="source"
+                  className="form-label flex items-center gap-2"
+                >
+                  <MapPin size={16} className="text-primary-dark" />
+                  Lead Source
                 </label>
 
                 <select
+                  id="source"
                   name="source"
                   value={form.source}
                   onChange={handleChange}
-                  className="w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-4 text-sm font-bold text-white outline-none focus:border-cyan-400/50 md:py-3"
+                  className="form-input min-h-12.5 font-semibold"
                 >
                   <option value="google_maps">Google Maps</option>
                   <option value="referral">Referral</option>
@@ -229,131 +340,268 @@ export default function AddLeadPage() {
                 </select>
               </div>
 
+              {/* Note */}
               <div>
-                <label className="mb-2 flex items-center gap-2 text-sm font-bold text-slate-300">
-                  <MessageCircle size={16} className="text-cyan-300" />
-                  Note
+                <label
+                  htmlFor="note"
+                  className="form-label flex items-center gap-2"
+                >
+                  <MessageCircle size={16} className="text-primary-dark" />
+                  Finder Note
                 </label>
 
                 <textarea
+                  id="note"
                   name="note"
                   value={form.note}
                   onChange={handleChange}
-                  rows={4}
-                  placeholder="Example: Found from Google Maps dentist listing"
-                  className="w-full resize-none rounded-2xl border border-white/10 bg-slate-950 px-4 py-4 text-sm text-white outline-none placeholder:text-slate-600 focus:border-cyan-400/50"
+                  rows={5}
+                  placeholder="Example: Found from a Google Maps dentist listing"
+                  className="form-input"
                 />
+
+                <p className="mt-2 text-xs leading-5 text-soft">
+                  Add useful information about where the number was found or why
+                  the business may need your service.
+                </p>
               </div>
 
+              {/* Assigned user */}
               <div>
-                <label className="mb-2 flex items-center gap-2 text-sm font-bold text-slate-300">
-                  <UserRound size={16} className="text-cyan-300" />
+                <label
+                  htmlFor="assignedTo"
+                  className="form-label flex items-center gap-2"
+                >
+                  <UserRound size={16} className="text-primary-dark" />
                   Assigned To
                 </label>
 
-                <select
-                  name="assignedTo"
-                  value={form.assignedTo}
-                  onChange={handleChange}
-                  disabled={loadingUsers}
-                  className="w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-4 text-sm font-bold text-white outline-none disabled:cursor-not-allowed disabled:opacity-60 md:py-3"
-                >
-                  <option value="">
-                    {loadingUsers ? "Loading users..." : "Not Assigned"}
-                  </option>
-
-                  {users.map((user) => (
-                    <option key={user._id} value={user._id}>
-                      {user.name} - {user.role?.replace("_", " ")}
-                      {user.phone ? ` - ${user.phone}` : ""}
+                <div className="relative">
+                  <select
+                    id="assignedTo"
+                    name="assignedTo"
+                    value={form.assignedTo}
+                    onChange={handleChange}
+                    disabled={loadingUsers}
+                    className="form-input min-h-12.5 font-semibold disabled:cursor-not-allowed disabled:bg-bg-soft"
+                  >
+                    <option value="">
+                      {loadingUsers
+                        ? "Loading team members..."
+                        : "Not Assigned"}
                     </option>
-                  ))}
-                </select>
+
+                    {users.map((user) => (
+                      <option key={user._id} value={user._id}>
+                        {user.name} - {formatLabel(user.role)}
+                        {user.phone ? ` - ${user.phone}` : ""}
+                      </option>
+                    ))}
+                  </select>
+
+                  {loadingUsers ? (
+                    <Loader2
+                      size={17}
+                      className="pointer-events-none absolute right-10 top-1/2 -translate-y-1/2 animate-spin text-primary"
+                    />
+                  ) : null}
+                </div>
 
                 {!loadingUsers && users.length === 0 ? (
-                  <p className="mt-2 text-xs text-red-300">
-                    No users found. Check /api/auth/users permission.
-                  </p>
+                  <div className="mt-3 flex items-start gap-2 rounded-2xl border border-danger/20 bg-danger-soft p-3 text-xs font-semibold leading-5 text-danger">
+                    <Info size={16} className="mt-0.5 shrink-0" />
+
+                    <span>
+                      No users were found. Check access to
+                      <code className="mx-1 rounded bg-white/60 px-1 py-0.5">
+                        /api/auth/users
+                      </code>
+                      and confirm the logged-in user has permission.
+                    </span>
+                  </div>
                 ) : null}
               </div>
 
+              {/* Selected user summary */}
               {selectedUser ? (
-                <div className="rounded-3xl border border-emerald-400/20 bg-emerald-400/10 p-4">
+                <section className="rounded-[22px] border border-primary/20 bg-bg-warm p-4">
                   <div className="flex items-start gap-3">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-400/20 text-emerald-300">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary text-white shadow-[0_10px_24px_rgba(255,153,0,0.24)]">
                       <UserRound size={20} />
                     </div>
 
-                    <div>
-                      <p className="text-sm font-black text-emerald-300">
+                    <div className="min-w-0 flex-1">
+                      <p className="wrap-break-word text-sm font-black text-secondary">
                         Assigned to {selectedUser.name}
                       </p>
 
-                      <p className="mt-1 text-xs text-slate-300">
-                        Role: {formatLabel(selectedUser.role)}
-                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <span className="rounded-full bg-primary-soft px-3 py-1 text-[11px] font-bold text-primary-dark">
+                          {formatLabel(selectedUser.role)}
+                        </span>
 
-                      <p className="mt-1 text-xs text-slate-300">
-                        WhatsApp: {selectedUser.phone || "Not saved"}
-                      </p>
+                        <span
+                          className={`rounded-full px-3 py-1 text-[11px] font-bold ${
+                            selectedUser.phone
+                              ? "bg-success-soft text-success"
+                              : "bg-warning-soft text-warning"
+                          }`}
+                        >
+                          {selectedUser.phone
+                            ? selectedUser.phone
+                            : "WhatsApp not saved"}
+                        </span>
+                      </div>
 
-                      {!selectedUser.phone ? (
-                        <p className="mt-2 text-xs font-bold text-yellow-300">
-                          WhatsApp notification will not open because phone is
-                          missing.
+                      {selectedUser.phone ? (
+                        <p className="mt-3 text-xs leading-5 text-muted">
+                          A ready-to-send WhatsApp assignment message will open
+                          after the lead is saved.
                         </p>
-                      ) : null}
+                      ) : (
+                        <p className="mt-3 text-xs font-semibold leading-5 text-warning">
+                          The lead will be assigned, but the WhatsApp message
+                          cannot open because this member has no saved phone
+                          number.
+                        </p>
+                      )}
                     </div>
                   </div>
-                </div>
+                </section>
               ) : null}
 
-              <button
-                type="submit"
-                disabled={saving}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-cyan-400 px-5 py-4 text-sm font-black text-slate-950 shadow-lg shadow-cyan-950/40 transition hover:bg-cyan-300 disabled:opacity-60 md:py-3"
-              >
-                {saving ? (
-                  <Loader2 size={18} className="animate-spin" />
-                ) : (
-                  <Save size={18} />
-                )}
-                {saving ? "Saving..." : "Save Lead"}
-              </button>
+              {/* Submit */}
+              <div className="border-t border-border-soft pt-5">
+                <button
+                  type="submit"
+                  disabled={saving || loadingUsers}
+                  className="btn-primary w-full py-3.5"
+                >
+                  {saving ? (
+                    <Loader2 size={18} className="animate-spin" />
+                  ) : (
+                    <Save size={18} />
+                  )}
+
+                  {saving ? "Saving Lead..." : "Save Lead"}
+                </button>
+              </div>
             </div>
           </form>
 
+          {/* Right information column */}
           <aside className="space-y-4">
-            <div className="rounded-3xl border border-white/10 bg-white/4 p-5">
-              <h2 className="text-lg font-black text-white">
-                WhatsApp Notification
-              </h2>
+            <section className="rounded-3xl border border-border-soft bg-white p-5 shadow-(--shadow-card)">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-secondary text-white">
+                  <Send size={20} />
+                </div>
 
-              <p className="mt-2 text-sm leading-6 text-slate-400">
-                If assigned user has a WhatsApp number, CRM will open WhatsApp
-                with a ready message after saving the lead.
-              </p>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary-dark">
+                    Assignment
+                  </p>
 
-              <div className="mt-4 rounded-2xl bg-slate-950 p-4 text-xs leading-6 text-slate-300">
-                <p className="font-black text-cyan-300">Message Preview</p>
-                <p className="mt-3">New lead assigned to you</p>
-                <p>Phone: {form.phone || "9876543210"}</p>
-                <p>Source: {formatLabel(form.source)}</p>
-                <p>Note: {form.note || "N/A"}</p>
-                <p>Open CRM lead: live link</p>
+                  <h2 className="mt-1 text-lg font-black text-secondary">
+                    WhatsApp Notification
+                  </h2>
+                </div>
               </div>
-            </div>
 
-            <div className="rounded-3xl border border-yellow-400/20 bg-yellow-400/10 p-5">
-              <p className="text-sm font-black text-yellow-300">
-                Free WhatsApp Method
+              <p className="mt-4 text-sm leading-6 text-muted">
+                When the assigned team member has a saved phone number, the CRM
+                opens WhatsApp with a prepared lead-assignment message.
               </p>
 
-              <p className="mt-2 text-sm leading-6 text-slate-300">
-                This opens WhatsApp with a pre-filled message. You still need to
-                click Send manually.
+              <div className="mt-5 overflow-hidden rounded-[20px] border border-border-soft bg-bg-soft">
+                <div className="border-b border-border-soft bg-secondary-soft px-4 py-3">
+                  <p className="text-xs font-black uppercase tracking-[0.15em] text-secondary">
+                    Message Preview
+                  </p>
+                </div>
+
+                <div className="space-y-1 p-4 text-xs leading-6 text-muted">
+                  <p className="font-black text-secondary">
+                    New lead assigned to you
+                  </p>
+
+                  <div className="my-2 h-px bg-border-soft" />
+
+                  <p>
+                    <span className="font-bold text-secondary">Phone:</span>{" "}
+                    {form.phone || "9876543210"}
+                  </p>
+
+                  <p>
+                    <span className="font-bold text-secondary">Source:</span>{" "}
+                    {formatLabel(form.source)}
+                  </p>
+
+                  <p className="wrap-break-word">
+                    <span className="font-bold text-secondary">Note:</span>{" "}
+                    {form.note || "N/A"}
+                  </p>
+
+                  <p>
+                    <span className="font-bold text-secondary">
+                      Open CRM lead:
+                    </span>{" "}
+                    Live link
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-3xl border border-primary/20 bg-bg-warm p-5 shadow-(--shadow-card)">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary-soft text-primary-dark">
+                  <MessageCircle size={19} />
+                </div>
+
+                <div>
+                  <p className="text-sm font-black text-secondary">
+                    Free WhatsApp Method
+                  </p>
+
+                  <p className="mt-2 text-sm leading-6 text-muted">
+                    This feature opens WhatsApp with a pre-filled message. The
+                    user must still review the message and click Send manually.
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-3xl border border-border-soft bg-secondary p-5 text-white shadow-[(--shadow-card)]">
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">
+                Before Saving
               </p>
-            </div>
+
+              <ul className="mt-4 space-y-3 text-sm leading-6 text-white/75">
+                <li className="flex items-start gap-2">
+                  <CheckCircle2
+                    size={16}
+                    className="mt-1 shrink-0 text-primary"
+                  />
+                  Confirm that the lead phone number is correct.
+                </li>
+
+                <li className="flex items-start gap-2">
+                  <CheckCircle2
+                    size={16}
+                    className="mt-1 shrink-0 text-primary"
+                  />
+                  Add a useful finder note for the assigned member.
+                </li>
+
+                <li className="flex items-start gap-2">
+                  <CheckCircle2
+                    size={16}
+                    className="mt-1 shrink-0 text-primary"
+                  />
+                  Check that the assigned member has a saved phone number.
+                </li>
+              </ul>
+            </section>
           </aside>
         </div>
       </div>

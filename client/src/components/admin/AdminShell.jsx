@@ -225,7 +225,7 @@ export default function AdminShell({ children }) {
                   className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-colors ${
                     active
                       ? "bg-white/20 text-white"
-                      : "bg-white/[0.06] text-white/70 group-hover:bg-white/10 group-hover:text-white"
+                      : "bg-white/6 text-white/70 group-hover:bg-white/10 group-hover:text-white"
                   }`}
                 >
                   <Icon size={18} strokeWidth={2.1} />
@@ -238,7 +238,7 @@ export default function AdminShell({ children }) {
         </nav>
 
         <div className="shrink-0 border-t border-white/10 p-5">
-          <div className="rounded-[22px] border border-white/10 bg-white/[0.05] p-4 shadow-inner">
+          <div className="rounded-[22px] border border-white/10 bg-white/5 p-4 shadow-inner">
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary-soft text-sm font-black uppercase text-primary-dark">
                 {user?.name?.trim()?.charAt(0) || "U"}
@@ -258,7 +258,7 @@ export default function AdminShell({ children }) {
             <button
               type="button"
               onClick={logout}
-              className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-bold text-white/75 transition hover:border-primary/40 hover:bg-primary hover:text-white"
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/4 px-4 py-3 text-sm font-bold text-white/75 transition hover:border-primary/40 hover:bg-primary hover:text-white"
             >
               <LogOut size={17} />
               Logout

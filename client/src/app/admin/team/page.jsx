@@ -2,49 +2,135 @@
 
 import AdminShell from "@/components/admin/AdminShell";
 import { API } from "@/lib/api";
-import { Loader2, Plus, RefreshCcw, ShieldCheck, UserPlus } from "lucide-react";
+import {
+  Eye,
+  EyeOff,
+  Loader2,
+  Lock,
+  Mail,
+  Phone,
+  Plus,
+  RefreshCcw,
+  ShieldCheck,
+  UserPlus,
+  Users,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import toast, { Toaster } from "react-hot-toast";
 
+const initialForm = {
+  name: "",
+  email: "",
+  phone: "",
+  password: "",
+  role: "sales",
+};
+
 const formatRole = (role) => {
   if (!role) return "—";
-  return role.replaceAll("_", " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
+  return role
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+};
+
+const formatDate = (dateValue) => {
+  if (!dateValue) return "—";
+
+  const date = new Date(dateValue);
+
+  if (Number.isNaN(date.getTime())) {
+    return "—";
+  }
+
+  return date.toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+};
+
+const roleBadgeClass = (role) => {
+  const base =
+    "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-black";
+
+  switch (role) {
+    case "founder":
+      return `${base} bg-primary text-white`;
+
+    case "co_founder":
+      return `${base} bg-primary-soft text-primary-dark`;
+
+    case "manager":
+      return `${base} bg-info-soft text-info`;
+
+    case "developer":
+      return `${base} bg-secondary-soft text-secondary`;
+
+    case "sales":
+      return `${base} bg-success-soft text-success`;
+
+    default:
+      return `${base} bg-secondary-soft text-secondary`;
+  }
+};
+
+const ToastContainer = () => {
+  return (
+    <Toaster
+      position="top-right"
+      toastOptions={{
+        duration: 3500,
+        style: {
+          background: "var(--secondary)",
+          color: "#ffffff",
+          border: "1px solid rgba(255,255,255,0.1)",
+          borderRadius: "14px",
+          boxShadow: "var(--shadow-medium)",
+        },
+        success: {
+          iconTheme: {
+            primary: "var(--primary)",
+            secondary: "#ffffff",
+          },
+        },
+      }}
+    />
+  );
 };
 
 export default function TeamPage() {
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [saving, setSaving] = useState(false);
+
   const [allowed, setAllowed] = useState(false);
   const [checkingRole, setCheckingRole] = useState(true);
+
+  const [showPassword, setShowPassword] = useState(false);
+  const [form, setForm] = useState(initialForm);
 
   useEffect(() => {
     const storedUser = localStorage.getItem("crm_user");
 
     if (!storedUser) {
+      setAllowed(false);
       setCheckingRole(false);
       return;
     }
 
-    const user = JSON.parse(storedUser);
-    const allowedRoles = ["founder", "co_founder"];
+    try {
+      const user = JSON.parse(storedUser);
+      const allowedRoles = ["founder", "co_founder"];
 
-    if (!allowedRoles.includes(user.role)) {
+      setAllowed(allowedRoles.includes(user?.role));
+    } catch (error) {
+      console.log("USER PARSE ERROR:", error);
       setAllowed(false);
-    } else {
-      setAllowed(true);
+    } finally {
+      setCheckingRole(false);
     }
-
-    setCheckingRole(false);
   }, []);
-
-  const [form, setForm] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    password: "",
-    role: "sales",
-  });
 
   const fetchUsers = async () => {
     try {
@@ -52,44 +138,59 @@ export default function TeamPage() {
 
       const { data } = await API.get("/api/auth/users");
 
-      setUsers(data.users || []);
+      setUsers(data?.users || []);
     } catch (error) {
+      console.log("USERS ERROR:", error?.response?.data || error?.message);
+
       toast.error(error?.response?.data?.message || "Failed to load users");
+
+      setUsers([]);
     } finally {
       setLoadingUsers(false);
     }
   };
 
   useEffect(() => {
-    fetchUsers();
-  }, []);
+    if (allowed && !checkingRole) {
+      fetchUsers();
+    }
 
-  const handleChange = (e) => {
-    setForm((prev) => ({
-      ...prev,
-      [e.target.name]: e.target.value,
+    if (!allowed && !checkingRole) {
+      setLoadingUsers(false);
+    }
+  }, [allowed, checkingRole]);
+
+  const handleChange = (event) => {
+    const { name, value } = event.target;
+
+    setForm((previous) => ({
+      ...previous,
+      [name]: value,
     }));
   };
 
   const resetForm = () => {
-    setForm({
-      name: "",
-      email: "",
-      phone: "",
-      password: "",
-      role: "sales",
-    });
+    setForm(initialForm);
+    setShowPassword(false);
   };
 
-  const handleCreateUser = async (e) => {
-    e.preventDefault();
+  const handleCreateUser = async (event) => {
+    event.preventDefault();
 
-    if (!form.name || !form.email || !form.password) {
+    const payload = {
+      name: form.name.trim(),
+      email: form.email.trim().toLowerCase(),
+      phone: form.phone.trim(),
+      password: form.password,
+      role: form.role,
+    };
+
+    if (!payload.name || !payload.email || !payload.password) {
       toast.error("Name, email and password are required");
       return;
     }
 
-    if (form.password.length < 6) {
+    if (payload.password.length < 6) {
       toast.error("Password must be at least 6 characters");
       return;
     }
@@ -97,13 +198,18 @@ export default function TeamPage() {
     try {
       setSaving(true);
 
-      await API.post("/auth/register", form);
+      await API.post("/api/auth/register", payload);
 
       toast.success("Team member created successfully");
 
       resetForm();
-      fetchUsers();
+      await fetchUsers();
     } catch (error) {
+      console.log(
+        "CREATE USER ERROR:",
+        error?.response?.data || error?.message,
+      );
+
       toast.error(error?.response?.data?.message || "Failed to create user");
     } finally {
       setSaving(false);
@@ -113,8 +219,16 @@ export default function TeamPage() {
   if (checkingRole) {
     return (
       <AdminShell>
-        <div className="flex h-[70vh] items-center justify-center">
-          <Loader2 className="animate-spin text-cyan-400" size={34} />
+        <div className="flex min-h-[70vh] items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-soft">
+              <Loader2 className="animate-spin text-primary" size={30} />
+            </div>
+
+            <p className="text-sm font-semibold text-muted">
+              Checking permissions...
+            </p>
+          </div>
         </div>
       </AdminShell>
     );
@@ -123,215 +237,378 @@ export default function TeamPage() {
   if (!allowed) {
     return (
       <AdminShell>
-        <div className="rounded-3xl border border-red-400/20 bg-red-400/10 p-10 text-center">
-          <h1 className="text-2xl font-black text-red-300">Access Denied</h1>
-          <p className="mt-2 text-sm text-slate-400">
-            Only founder and co-founder can manage team members.
-          </p>
+        <div className="mx-auto flex min-h-[65vh] max-w-3xl items-center justify-center">
+          <div className="w-full rounded-3xl border border-danger/20 bg-white p-8 text-center shadow-[var(--shadow-card) md:p-12">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-danger-soft text-danger">
+              <ShieldCheck size={29} />
+            </div>
+
+            <h1 className="mt-5 text-2xl font-black text-secondary">
+              Access Denied
+            </h1>
+
+            <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-muted">
+              Only the founder and co-founder can create or manage CRM team
+              members.
+            </p>
+          </div>
         </div>
       </AdminShell>
     );
   }
+
   return (
     <AdminShell>
-      <Toaster position="top-right" />
+      <ToastContainer />
 
-      <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
-        <div>
-          <p className="text-sm font-bold uppercase tracking-[0.25em] text-cyan-300">
-            Team
-          </p>
-          <h1 className="mt-2 text-3xl font-black md:text-4xl">
-            Team Management
-          </h1>
-          <p className="mt-2 text-sm text-slate-400">
-            Founder and co-founder can create teammates for CRM access.
-          </p>
-        </div>
+      <div className="mx-auto w-full max-w-350">
+        {/* Page header */}
+        <header className="mb-6 overflow-hidden rounded-3xl border border-primary/20 bg-[linear-gradient(135deg,var(--bg-warm)_0%,var(--bg-card)_58%,var(--secondary-soft)_100%)] p-5 shadow-[var(--shadow-card) md:mb-8 md:p-7">
+          <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
+            <div className="min-w-0">
+              <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary-soft px-3 py-1.5 text-xs font-black uppercase tracking-[0.2em] text-primary-dark">
+                <Users size={14} />
+                Team
+              </div>
 
-        <button
-          onClick={fetchUsers}
-          className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 px-5 py-3 text-sm font-bold text-white hover:bg-white/10"
-        >
-          <RefreshCcw size={17} />
-          Refresh
-        </button>
-      </div>
+              <h1 className="mt-4 text-2xl font-black tracking-tight text-secondary md:text-4xl">
+                Team Management
+              </h1>
 
-      <div className="grid gap-6 xl:grid-cols-[420px_1fr]">
-        <form
-          onSubmit={handleCreateUser}
-          className="rounded-3xl border border-white/10 bg-white/4 p-6"
-        >
-          <div className="mb-6 flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-400/10 text-cyan-300">
-              <UserPlus size={24} />
-            </div>
-
-            <div>
-              <h2 className="text-xl font-black">Create Teammate</h2>
-              <p className="text-sm text-slate-400">Add CRM user account</p>
-            </div>
-          </div>
-
-          <div className="space-y-5">
-            <div>
-              <label className="mb-2 block text-sm font-bold text-slate-300">
-                Name *
-              </label>
-              <input
-                name="name"
-                value={form.name}
-                onChange={handleChange}
-                placeholder="Team member name"
-                className="w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-sm outline-none placeholder:text-slate-600"
-              />
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-bold text-slate-300">
-                Email *
-              </label>
-              <input
-                type="email"
-                name="email"
-                value={form.email}
-                onChange={handleChange}
-                placeholder="sales@maytech.com"
-                className="w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-sm outline-none placeholder:text-slate-600"
-              />
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-bold text-slate-300">
-                Phone / WhatsApp Number
-              </label>
-
-              <input
-                name="phone"
-                value={form.phone}
-                onChange={handleChange}
-                placeholder="9876543210"
-                className="w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-sm outline-none placeholder:text-slate-600"
-              />
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-bold text-slate-300">
-                Password *
-              </label>
-              <input
-                type="password"
-                name="password"
-                value={form.password}
-                onChange={handleChange}
-                placeholder="Minimum 6 characters"
-                className="w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-sm outline-none placeholder:text-slate-600"
-              />
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-bold text-slate-300">
-                Role
-              </label>
-              <select
-                name="role"
-                value={form.role}
-                onChange={handleChange}
-                className="w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-sm outline-none"
-              >
-                <option value="co_founder">Co Founder</option>
-                <option value="manager">Manager</option>
-                <option value="developer">Developer</option>
-                <option value="sales">Sales</option>
-              </select>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted md:text-base">
+                Create CRM accounts, assign roles and manage the team members
+                who can access MayTech CRM.
+              </p>
             </div>
 
             <button
-              type="submit"
-              disabled={saving}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-cyan-400 px-5 py-3 text-sm font-black text-slate-950 hover:bg-cyan-300 disabled:opacity-60"
+              type="button"
+              onClick={fetchUsers}
+              disabled={loadingUsers}
+              className="btn-secondary w-full md:w-auto"
             >
-              {saving ? (
-                <Loader2 size={18} className="animate-spin" />
-              ) : (
-                <Plus size={18} />
-              )}
-              {saving ? "Creating..." : "Create User"}
+              <RefreshCcw
+                size={17}
+                className={loadingUsers ? "animate-spin" : ""}
+              />
+              Refresh Team
             </button>
           </div>
-        </form>
+        </header>
 
-        <section className="overflow-hidden rounded-3xl border border-white/10 bg-white/4">
-          <div className="border-b border-white/10 p-6">
-            <h2 className="text-xl font-black">Active Users</h2>
-            <p className="mt-1 text-sm text-slate-400">
-              Users who can login to MayTech CRM.
-            </p>
-          </div>
+        <div className="grid gap-6 xl:grid-cols-[400px_minmax(0,1fr)]">
+          {/* Create user form */}
+          <form
+            onSubmit={handleCreateUser}
+            className="h-fit rounded-3xl border border-border-soft bg-white p-5 shadow-(--shadow-card) md:p-6"
+          >
+            <div className="mb-6 flex items-start gap-3 border-b border-border-soft pb-5">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary-soft text-primary-dark">
+                <UserPlus size={23} />
+              </div>
 
-          {loadingUsers ? (
-            <div className="flex h-60 items-center justify-center">
-              <Loader2 className="animate-spin text-cyan-400" size={32} />
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary-dark">
+                  New Account
+                </p>
+
+                <h2 className="mt-1 text-xl font-black text-secondary">
+                  Create Teammate
+                </h2>
+
+                <p className="mt-1 text-sm leading-6 text-muted">
+                  Add a new user who can log in to the CRM.
+                </p>
+              </div>
             </div>
-          ) : users.length === 0 ? (
-            <div className="p-10 text-center text-slate-400">
-              No users found.
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-180 text-left text-sm">
-                <thead className="border-b border-white/10 bg-white/3 text-xs uppercase tracking-wider text-slate-400">
-                  <tr>
-                    <th className="px-5 py-4">User</th>
-                    <th className="px-5 py-4">Email</th>
-                    <th className="px-5 py-4">Role</th>
-                    <th className="px-5 py-4">Status</th>
-                  </tr>
-                </thead>
 
-                <tbody className="divide-y divide-white/10">
-                  {users.map((user) => (
-                    <tr key={user._id} className="hover:bg-white/3">
-                      <td className="px-5 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-cyan-400/10 text-sm font-black text-cyan-300">
-                            {user.name?.charAt(0)?.toUpperCase() || "U"}
+            <div className="space-y-5">
+              <div>
+                <label htmlFor="name" className="form-label">
+                  Name <span className="text-danger">*</span>
+                </label>
+
+                <div className="flex min-h-12.5 items-center gap-3 rounded-[14px] border border-border-soft bg-white px-4 transition hover:border-border-medium focus-within:border-primary focus-within:shadow-[0_0_0_4px_rgba(255,153,0,0.14)]">
+                  <UserPlus size={17} className="shrink-0 text-primary-dark" />
+
+                  <input
+                    id="name"
+                    type="text"
+                    name="name"
+                    value={form.name}
+                    onChange={handleChange}
+                    placeholder="Team member name"
+                    required
+                    disabled={saving}
+                    className="w-full bg-transparent text-sm font-semibold text-main outline-none placeholder:text-soft"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="email" className="form-label">
+                  Email <span className="text-danger">*</span>
+                </label>
+
+                <div className="flex min-h-12.5 items-center gap-3 rounded-[14px] border border-border-soft bg-white px-4 transition hover:border-border-medium focus-within:border-primary focus-within:shadow-[0_0_0_4px_rgba(255,153,0,0.14)]">
+                  <Mail size={17} className="shrink-0 text-primary-dark" />
+
+                  <input
+                    id="email"
+                    type="email"
+                    name="email"
+                    value={form.email}
+                    onChange={handleChange}
+                    placeholder="sales@maytech.com"
+                    autoComplete="email"
+                    required
+                    disabled={saving}
+                    className="w-full bg-transparent text-sm font-semibold text-main outline-none placeholder:text-soft"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="phone" className="form-label">
+                  Phone / WhatsApp Number
+                </label>
+
+                <div className="flex min-h-12.5 items-center gap-3 rounded-[14px] border border-border-soft bg-white px-4 transition hover:border-border-medium focus-within:border-primary focus-within:shadow-[0_0_0_4px_rgba(255,153,0,0.14)]">
+                  <Phone size={17} className="shrink-0 text-primary-dark" />
+
+                  <input
+                    id="phone"
+                    type="tel"
+                    name="phone"
+                    value={form.phone}
+                    onChange={handleChange}
+                    placeholder="9876543210"
+                    inputMode="numeric"
+                    autoComplete="tel"
+                    disabled={saving}
+                    className="w-full bg-transparent text-sm font-semibold text-main outline-none placeholder:text-soft"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="password" className="form-label">
+                  Password <span className="text-danger">*</span>
+                </label>
+
+                <div className="flex min-h-12.5 items-center gap-3 rounded-[14px] border border-border-soft bg-white px-4 transition hover:border-border-medium focus-within:border-primary focus-within:shadow-[0_0_0_4px_rgba(255,153,0,0.14)]">
+                  <Lock size={17} className="shrink-0 text-primary-dark" />
+
+                  <input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    name="password"
+                    value={form.password}
+                    onChange={handleChange}
+                    placeholder="Minimum 6 characters"
+                    autoComplete="new-password"
+                    required
+                    disabled={saving}
+                    className="w-full bg-transparent text-sm font-semibold text-main outline-none placeholder:text-soft"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((previous) => !previous)}
+                    disabled={saving}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-muted transition hover:bg-primary-soft hover:text-primary-dark"
+                    aria-label={
+                      showPassword ? "Hide password" : "Show password"
+                    }
+                  >
+                    {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="role" className="form-label">
+                  Role
+                </label>
+
+                <select
+                  id="role"
+                  name="role"
+                  value={form.role}
+                  onChange={handleChange}
+                  disabled={saving}
+                  className="form-input min-h-12.5 font-semibold"
+                >
+                  <option value="co_founder">Co-Founder</option>
+                  <option value="manager">Manager</option>
+                  <option value="developer">Developer</option>
+                  <option value="sales">Sales</option>
+                </select>
+              </div>
+
+              <div className="border-t border-border-soft pt-5">
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="btn-primary w-full py-3.5"
+                >
+                  {saving ? (
+                    <Loader2 size={18} className="animate-spin" />
+                  ) : (
+                    <Plus size={18} />
+                  )}
+
+                  {saving ? "Creating User..." : "Create User"}
+                </button>
+              </div>
+            </div>
+          </form>
+
+          {/* Team members */}
+          <section className="overflow-hidden rounded-3xl border border-border-soft bg-white shadow-[var(--shadow-card)">
+            <div className="flex flex-col gap-4 border-b border-border-soft p-5 sm:flex-row sm:items-center sm:justify-between md:p-6">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary-soft text-primary-dark">
+                  <Users size={23} />
+                </div>
+
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary-dark">
+                    CRM Access
+                  </p>
+
+                  <h2 className="mt-1 text-xl font-black text-secondary">
+                    Active Users
+                  </h2>
+
+                  <p className="mt-1 text-sm text-muted">
+                    Users who can log in to MayTech CRM.
+                  </p>
+                </div>
+              </div>
+
+              <div className="inline-flex w-fit items-center rounded-full bg-primary-soft px-3 py-1.5 text-xs font-bold text-primary-dark">
+                Total users: {users.length}
+              </div>
+            </div>
+
+            {loadingUsers ? (
+              <div className="flex min-h-105 items-center justify-center">
+                <div className="flex flex-col items-center gap-4">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-soft">
+                    <Loader2 className="animate-spin text-primary" size={30} />
+                  </div>
+
+                  <p className="text-sm font-semibold text-muted">
+                    Loading team members...
+                  </p>
+                </div>
+              </div>
+            ) : users.length === 0 ? (
+              <div className="flex min-h-105 flex-col items-center justify-center p-8 text-center">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-soft text-primary-dark">
+                  <Users size={28} />
+                </div>
+
+                <h3 className="mt-4 text-lg font-black text-secondary">
+                  No users found
+                </h3>
+
+                <p className="mt-2 max-w-sm text-sm leading-6 text-muted">
+                  Create the first CRM team member using the form.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 bg-bg-soft p-4 md:grid-cols-2 md:p-5 2xl:grid-cols-3">
+                {users.map((user) => {
+                  const isActive = user.isActive !== false;
+
+                  return (
+                    <article
+                      key={user._id}
+                      className="group relative flex h-full flex-col overflow-hidden rounded-[22px] border border-border-soft bg-white p-5 shadow-[var(--shadow-card) transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-[var(--shadow-soft)"
+                    >
+                      <div className="absolute -right-10 -top-10 h-28 w-28 rounded-full bg-primary-soft transition-transform duration-300 group-hover:scale-125" />
+
+                      <div className="relative flex h-full flex-col">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex min-w-0 items-center gap-3">
+                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary text-lg font-black uppercase text-white shadow-[0_10px_24px_rgba(255,153,0,0.24)]">
+                              {user.name?.trim()?.charAt(0) || "U"}
+                            </div>
+
+                            <div className="min-w-0">
+                              <h3 className="truncate font-black text-secondary">
+                                {user.name || "Unnamed User"}
+                              </h3>
+
+                              <p className="mt-1 text-xs text-soft">
+                                Added {formatDate(user.createdAt)}
+                              </p>
+                            </div>
                           </div>
 
-                          <div>
-                            <p className="font-bold text-white">{user.name}</p>
-                            <p className="text-xs text-slate-500">
-                              Added{" "}
-                              {new Date(user.createdAt).toLocaleDateString(
-                                "en-IN",
-                              )}
-                            </p>
+                          <span
+                            className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black ${
+                              isActive
+                                ? "bg-success-soft text-success"
+                                : "bg-danger-soft text-danger"
+                            }`}
+                          >
+                            {isActive ? "Active" : "Inactive"}
+                          </span>
+                        </div>
+
+                        <div className="mt-5 space-y-3">
+                          <div className="flex items-start gap-3 rounded-2xl border border-border-soft bg-bg-soft p-3">
+                            <Mail
+                              size={16}
+                              className="mt-0.5 shrink-0 text-primary-dark"
+                            />
+
+                            <div className="min-w-0">
+                              <p className="text-[10px] font-bold uppercase tracking-wider text-soft">
+                                Email
+                              </p>
+
+                              <p className="mt-1 wrap-break-word text-sm font-semibold text-secondary">
+                                {user.email || "Not available"}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-start gap-3 rounded-2xl border border-border-soft bg-bg-soft p-3">
+                            <Phone
+                              size={16}
+                              className="mt-0.5 shrink-0 text-primary-dark"
+                            />
+
+                            <div className="min-w-0">
+                              <p className="text-[10px] font-bold uppercase tracking-wider text-soft">
+                                Phone
+                              </p>
+
+                              <p className="mt-1 wrap-break-word text-sm font-semibold text-secondary">
+                                {user.phone || "Not saved"}
+                              </p>
+                            </div>
                           </div>
                         </div>
-                      </td>
 
-                      <td className="px-5 py-4 text-slate-300">{user.email}</td>
-
-                      <td className="px-5 py-4">
-                        <span className="inline-flex items-center gap-2 rounded-full bg-cyan-400/10 px-3 py-1 text-xs font-bold text-cyan-300">
-                          <ShieldCheck size={14} />
-                          {formatRole(user.role)}
-                        </span>
-                      </td>
-
-                      <td className="px-5 py-4">
-                        <span className="rounded-full bg-emerald-400/10 px-3 py-1 text-xs font-bold text-emerald-300">
-                          Active
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
+                        <div className="mt-auto pt-5">
+                          <span className={roleBadgeClass(user.role)}>
+                            <ShieldCheck size={14} />
+                            {formatRole(user.role)}
+                          </span>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        </div>
       </div>
     </AdminShell>
   );

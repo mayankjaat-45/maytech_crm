@@ -16,6 +16,12 @@ import {
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+const initialFilters = {
+  search: "",
+  callStatus: "",
+  leadStatus: "",
+};
+
 const formatLabel = (value) => {
   if (!value) return "—";
 
@@ -38,6 +44,20 @@ const formatDate = (value) => {
     month: "short",
     year: "numeric",
   });
+};
+
+const getWhatsAppNumber = (phone) => {
+  const cleanedPhone = String(phone || "").replace(/\D/g, "");
+
+  if (!cleanedPhone) {
+    return "";
+  }
+
+  if (cleanedPhone.startsWith("91") && cleanedPhone.length > 10) {
+    return cleanedPhone;
+  }
+
+  return `91${cleanedPhone}`;
 };
 
 const statusBadge = (status) => {
@@ -93,35 +113,20 @@ const callBadge = (status) => {
   }
 };
 
-const getWhatsAppNumber = (phone) => {
-  const cleanedPhone = String(phone || "").replace(/\D/g, "");
-
-  if (cleanedPhone.startsWith("91") && cleanedPhone.length > 10) {
-    return cleanedPhone;
-  }
-
-  return `91${cleanedPhone}`;
-};
-
 export default function LeadsPage() {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState(initialFilters);
 
-  const [filters, setFilters] = useState({
-    search: "",
-    callStatus: "",
-    leadStatus: "",
-  });
-
-  const fetchLeads = async () => {
+  const fetchLeads = async (filterValues = filters) => {
     try {
       setLoading(true);
 
       const { data } = await API.get("/api/leads", {
         params: {
-          search: filters.search || undefined,
-          callStatus: filters.callStatus || undefined,
-          leadStatus: filters.leadStatus || undefined,
+          search: filterValues.search.trim() || undefined,
+          callStatus: filterValues.callStatus || undefined,
+          leadStatus: filterValues.leadStatus || undefined,
         },
       });
 
@@ -135,22 +140,27 @@ export default function LeadsPage() {
   };
 
   useEffect(() => {
-    fetchLeads();
+    fetchLeads(initialFilters);
   }, []);
 
   const handleSearch = (event) => {
     event.preventDefault();
-    fetchLeads();
+    fetchLeads(filters);
+  };
+
+  const handleResetFilters = () => {
+    setFilters(initialFilters);
+    fetchLeads(initialFilters);
   };
 
   return (
     <AdminShell>
       <div className="mx-auto w-full max-w-350">
         {/* Page header */}
-        <header className="mb-6 rounded-3xl border border-border-soft bg-white p-5 shadow-[var(--shadow-card) md:mb-8 md:p-7">
+        <header className="mb-6 overflow-hidden rounded-3xl border border-primary/20 bg-[linear-gradient(135deg,var(--bg-warm)_0%,var(--bg-card)_58%,var(--secondary-soft)_100%)] p-5 shadow-[var(--shadow-card) md:mb-8 md:p-7">
           <div className="flex flex-col justify-between gap-5 md:flex-row md:items-end">
-            <div>
-              <div className="inline-flex items-center gap-2 rounded-full bg-primary-soft px-3 py-1.5 text-xs font-bold uppercase tracking-[0.2em] text-primary-dark">
+            <div className="min-w-0">
+              <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary-soft px-3 py-1.5 text-xs font-bold uppercase tracking-[0.2em] text-primary-dark">
                 <span className="h-2 w-2 rounded-full bg-primary" />
                 Leads
               </div>
@@ -160,8 +170,8 @@ export default function LeadsPage() {
               </h1>
 
               <p className="mt-2 max-w-2xl text-sm leading-6 text-muted md:text-base">
-                Manage numbers added by your team, track requirements and update
-                call status.
+                Manage numbers added by your team, track requirements, contact
+                leads and update their progress.
               </p>
             </div>
 
@@ -178,7 +188,7 @@ export default function LeadsPage() {
         {/* Filters */}
         <form
           onSubmit={handleSearch}
-          className="mb-6 grid gap-3 rounded-3xl border border-border-soft bg-white p-4 shadow-(--shadow-card) md:grid-cols-[minmax(260px,1fr)_220px_220px_auto] md:p-5"
+          className="mb-6 grid gap-3 rounded-3xl border border-border-soft bg-white p-4 shadow-(--shadow-card)] md:grid-cols-2 md:p-5 xl:grid-cols-[minmax(260px,1fr)_220px_220px_auto]"
         >
           <div className="flex min-h-12 items-center gap-3 rounded-2xl border border-border-soft bg-bg-soft px-4 transition focus-within:border-primary focus-within:bg-white focus-within:shadow-[0_0_0_4px_rgba(255,153,0,0.12)]">
             <Search size={18} className="shrink-0 text-soft" />
@@ -240,31 +250,46 @@ export default function LeadsPage() {
             <option value="invalid_number">Invalid Number</option>
           </select>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-secondary px-5 text-sm font-black text-white transition hover:bg-secondary-dark disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {loading ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : (
-              <RefreshCcw size={16} />
-            )}
-            Apply Filters
-          </button>
+          <div className="grid grid-cols-2 gap-2 md:col-span-2 xl:col-span-1 xl:flex">
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              disabled={loading}
+              className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-border-soft bg-white px-4 text-sm font-bold text-secondary transition hover:border-primary/30 hover:bg-primary-soft disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Reset
+            </button>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-secondary px-5 text-sm font-black text-white transition hover:bg-secondary-dark disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loading ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <RefreshCcw size={16} />
+              )}
+              Filter
+            </button>
+          </div>
         </form>
 
         {/* Leads section */}
         <section className="overflow-hidden rounded-3xl border border-border-soft bg-white shadow-(--shadow-card)">
-          <div className="flex flex-col gap-2 border-b border-border-soft bg-white p-5 sm:flex-row sm:items-center sm:justify-between md:p-6">
+          <div className="flex flex-col gap-4 border-b border-border-soft p-5 sm:flex-row sm:items-center sm:justify-between md:p-6">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary-dark">
                 Lead Management
               </p>
 
               <h2 className="mt-2 text-lg font-black text-secondary md:text-xl">
-                All Leads
+                All Lead Cards
               </h2>
+
+              <p className="mt-1 text-sm text-muted">
+                Contact, review and manage every lead.
+              </p>
             </div>
 
             <div className="inline-flex w-fit items-center rounded-full bg-primary-soft px-3 py-1.5 text-xs font-bold text-primary-dark">
@@ -297,238 +322,145 @@ export default function LeadsPage() {
               <p className="mt-2 max-w-sm text-sm leading-6 text-muted">
                 No leads match your current search and filter selection.
               </p>
+
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="btn-secondary mt-5"
+              >
+                Clear Filters
+              </button>
             </div>
           ) : (
-            <>
-              {/* Mobile cards */}
-              <div className="grid gap-4 bg-bg-soft p-4 md:hidden">
-                {leads.map((lead) => (
-                  <article
-                    key={lead._id}
-                    className="group relative overflow-hidden rounded-[22px] border border-border-soft bg-white p-4 shadow-(--shadow-card)"
-                  >
-                    <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full bg-primary-soft transition-transform duration-300 group-hover:scale-110" />
+            <div className="grid grid-cols-1 gap-4 bg-bg-soft p-4 sm:p-5 md:grid-cols-2 2xl:grid-cols-3">
+              {leads.map((lead) => (
+                <article
+                  key={lead._id}
+                  className="group relative flex h-full flex-col overflow-hidden rounded-[22px] border border-border-soft bg-white p-4 shadow-[var(--shadow-card) transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-[var(--shadow-soft) sm:p-5"
+                >
+                  <div className="absolute -right-10 -top-10 h-28 w-28 rounded-full bg-primary-soft transition-transform duration-300 group-hover:scale-125" />
 
-                    <div className="relative">
-                      <div className="mb-4 flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-soft">
-                            Lead Phone
-                          </p>
+                  <div className="relative flex h-full flex-col">
+                    {/* Lead heading */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-soft">
+                          Lead Phone
+                        </p>
 
-                          <h3 className="mt-1 wrap-break-word text-xl font-black text-secondary">
-                            {lead.phone}
-                          </h3>
-                        </div>
+                        <h3 className="mt-1 wrap-break-word text-xl font-black text-secondary">
+                          {lead.phone}
+                        </h3>
 
-                        <span className={statusBadge(lead.leadStatus)}>
-                          {formatLabel(lead.leadStatus)}
-                        </span>
+                        <p className="mt-1 text-xs font-semibold text-muted">
+                          {formatLabel(lead.source)}
+                        </p>
                       </div>
 
-                      <p className="mb-4 line-clamp-2 rounded-2xl border border-primary/10 bg-bg-warm p-3 text-sm leading-6 text-muted">
-                        {lead.requirementNote || lead.note || "No note added"}
+                      <span
+                        className={`${statusBadge(
+                          lead.leadStatus,
+                        )} max-w-32.5 shrink-0 text-center`}
+                      >
+                        {formatLabel(lead.leadStatus)}
+                      </span>
+                    </div>
+
+                    {/* Requirement note */}
+                    <div className="mt-4 rounded-2xl border border-primary/15 bg-bg-warm p-3.5">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-primary-dark">
+                        Requirement
                       </p>
 
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="rounded-2xl border border-border-soft bg-bg-soft p-3">
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-soft">
-                            Source
-                          </p>
-
-                          <p className="mt-1 text-sm font-bold text-secondary">
-                            {formatLabel(lead.source)}
-                          </p>
-                        </div>
-
-                        <div className="rounded-2xl border border-border-soft bg-bg-soft p-3">
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-soft">
-                            Service
-                          </p>
-
-                          <p className="mt-1 line-clamp-1 text-sm font-bold text-secondary">
-                            {formatLabel(lead.serviceRequired)}
-                          </p>
-                        </div>
-
-                        <div className="rounded-2xl border border-border-soft bg-bg-soft p-3">
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-soft">
-                            Call Status
-                          </p>
-
-                          <div className="mt-2">
-                            <span className={callBadge(lead.callStatus)}>
-                              {formatLabel(lead.callStatus)}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="rounded-2xl border border-border-soft bg-bg-soft p-3">
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-soft">
-                            Follow-up
-                          </p>
-
-                          <div className="mt-1 flex items-center gap-1.5 text-sm font-bold text-secondary">
-                            <Calendar
-                              size={14}
-                              className="shrink-0 text-primary-dark"
-                            />
-
-                            <span>{formatDate(lead.followUpDate)}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 flex items-center gap-3 rounded-2xl border border-border-soft bg-white p-3">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary-dark">
-                          <UserRound size={17} />
-                        </div>
-
-                        <div className="min-w-0">
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-soft">
-                            Assigned To
-                          </p>
-
-                          <p className="truncate text-sm font-bold text-secondary">
-                            {lead.assignedTo?.name || "Not Assigned"}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 grid grid-cols-3 gap-2">
-                        <a
-                          href={`tel:${lead.phone}`}
-                          className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-2xl border border-border-soft bg-white px-2 text-xs font-black text-secondary transition hover:border-primary/30 hover:bg-primary-soft"
-                        >
-                          <Phone size={15} />
-                          Call
-                        </a>
-
-                        <a
-                          href={`https://wa.me/${getWhatsAppNumber(
-                            lead.phone,
-                          )}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-2xl border border-border-soft bg-white px-2 text-xs font-black text-secondary transition hover:border-primary/30 hover:bg-primary-soft"
-                        >
-                          <Send size={15} />
-                          WA
-                        </a>
-
-                        <Link
-                          href={`/admin/leads/${lead._id}`}
-                          className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-2xl bg-primary px-2 text-xs font-black text-white shadow-[0_10px_22px_rgba(255,153,0,0.22)] transition hover:bg-primary-dark"
-                        >
-                          <Eye size={15} />
-                          Open
-                        </Link>
-                      </div>
+                      <p className="mt-2 line-clamp-3 min-h-18 text-sm leading-6 text-muted">
+                        {lead.requirementNote ||
+                          lead.note ||
+                          "No requirement note added"}
+                      </p>
                     </div>
-                  </article>
-                ))}
-              </div>
 
-              {/* Desktop table */}
-              <div className="hidden overflow-x-auto md:block">
-                <table className="w-full min-w-250 text-left text-sm">
-                  <thead className="border-b border-border-soft bg-secondary-soft">
-                    <tr className="text-xs uppercase tracking-wider text-secondary">
-                      <th className="px-5 py-4 font-black">Phone</th>
-                      <th className="px-5 py-4 font-black">Source</th>
-                      <th className="px-5 py-4 font-black">Call Status</th>
-                      <th className="px-5 py-4 font-black">Lead Status</th>
-                      <th className="px-5 py-4 font-black">Service</th>
-                      <th className="px-5 py-4 font-black">Assigned To</th>
-                      <th className="px-5 py-4 font-black">Action</th>
-                    </tr>
-                  </thead>
+                    {/* Lead details */}
+                    <div className="mt-4 grid grid-cols-2 gap-3">
+                      <div className="rounded-2xl border border-border-soft bg-bg-soft p-3">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-soft">
+                          Service
+                        </p>
 
-                  <tbody className="divide-y divide-border-soft">
-                    {leads.map((lead) => (
-                      <tr
-                        key={lead._id}
-                        className="transition-colors hover:bg-bg-warm"
-                      >
-                        <td className="px-5 py-4">
-                          <div className="font-black text-secondary">
-                            {lead.phone}
-                          </div>
+                        <p className="mt-1 line-clamp-2 min-h-10 text-sm font-bold leading-5 text-secondary">
+                          {formatLabel(lead.serviceRequired)}
+                        </p>
+                      </div>
 
-                          <div className="mt-1 max-w-52 truncate text-xs text-soft">
-                            {lead.requirementNote || lead.note || "No note"}
-                          </div>
-                        </td>
+                      <div className="rounded-2xl border border-border-soft bg-bg-soft p-3">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-soft">
+                          Call Status
+                        </p>
 
-                        <td className="px-5 py-4 font-medium text-muted">
-                          {formatLabel(lead.source)}
-                        </td>
-
-                        <td className="px-5 py-4">
+                        <div className="mt-2">
                           <span className={callBadge(lead.callStatus)}>
                             {formatLabel(lead.callStatus)}
                           </span>
-                        </td>
+                        </div>
+                      </div>
 
-                        <td className="px-5 py-4">
-                          <span className={statusBadge(lead.leadStatus)}>
-                            {formatLabel(lead.leadStatus)}
-                          </span>
-                        </td>
+                      <div className="rounded-2xl border border-border-soft bg-bg-soft p-3">
+                        <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-soft">
+                          <Calendar size={13} className="text-primary-dark" />
+                          Follow-up
+                        </p>
 
-                        <td className="px-5 py-4 font-medium text-muted">
-                          {formatLabel(lead.serviceRequired)}
-                        </td>
+                        <p className="mt-1.5 text-sm font-bold text-secondary">
+                          {formatDate(lead.followUpDate)}
+                        </p>
+                      </div>
 
-                        <td className="px-5 py-4">
-                          <div className="flex items-center gap-2">
-                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary-soft text-primary-dark">
-                              <UserRound size={15} />
-                            </div>
+                      <div className="rounded-2xl border border-border-soft bg-bg-soft p-3">
+                        <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-soft">
+                          <UserRound size={13} className="text-primary-dark" />
+                          Assigned To
+                        </p>
 
-                            <span className="font-semibold text-secondary">
-                              {lead.assignedTo?.name || "Not Assigned"}
-                            </span>
-                          </div>
-                        </td>
+                        <p className="mt-1.5 truncate text-sm font-bold text-secondary">
+                          {lead.assignedTo?.name || "Not Assigned"}
+                        </p>
+                      </div>
+                    </div>
 
-                        <td className="px-5 py-4">
-                          <div className="flex items-center gap-2">
-                            <a
-                              href={`tel:${lead.phone}`}
-                              className="flex h-9 w-9 items-center justify-center rounded-xl border border-border-soft bg-white text-muted transition hover:border-primary/30 hover:bg-primary-soft hover:text-primary-dark"
-                              aria-label={`Call ${lead.phone}`}
-                            >
-                              <Phone size={16} />
-                            </a>
+                    {/* Actions */}
+                    <div className="mt-auto grid grid-cols-3 gap-2 pt-5">
+                      <a
+                        href={`tel:${lead.phone}`}
+                        className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-2xl border border-border-soft bg-white px-2 text-xs font-black text-secondary transition hover:border-primary/30 hover:bg-primary-soft"
+                        aria-label={`Call ${lead.phone}`}
+                      >
+                        <Phone size={15} />
+                        Call
+                      </a>
 
-                            <a
-                              href={`https://wa.me/${getWhatsAppNumber(
-                                lead.phone,
-                              )}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="flex h-9 w-9 items-center justify-center rounded-xl border border-border-soft bg-white text-muted transition hover:border-primary/30 hover:bg-primary-soft hover:text-primary-dark"
-                              aria-label={`WhatsApp ${lead.phone}`}
-                            >
-                              <Send size={16} />
-                            </a>
+                      <a
+                        href={`https://wa.me/${getWhatsAppNumber(lead.phone)}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-2xl border border-border-soft bg-white px-2 text-xs font-black text-secondary transition hover:border-primary/30 hover:bg-primary-soft"
+                        aria-label={`WhatsApp ${lead.phone}`}
+                      >
+                        <Send size={15} />
+                        WhatsApp
+                      </a>
 
-                            <Link
-                              href={`/admin/leads/${lead._id}`}
-                              className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-white shadow-[0_8px_18px_rgba(255,153,0,0.2)] transition hover:bg-primary-dark"
-                              aria-label={`Open lead ${lead.phone}`}
-                            >
-                              <Eye size={16} />
-                            </Link>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
+                      <Link
+                        href={`/admin/leads/${lead._id}`}
+                        className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-2xl bg-primary px-2 text-xs font-black text-white shadow-[0_10px_22px_rgba(255,153,0,0.22)] transition hover:bg-primary-dark"
+                        aria-label={`Open lead ${lead.phone}`}
+                      >
+                        <Eye size={15} />
+                        Open
+                      </Link>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
           )}
         </section>
       </div>
